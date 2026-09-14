@@ -1,0 +1,2424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EstimaPro by GUD</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F3EF;--surface:#FFF;--surface2:#F9F8F5;
+  --border:rgba(0,0,0,0.08);--border-md:rgba(0,0,0,0.15);--border-strong:rgba(0,0,0,0.25);
+  --text:#181816;--muted:#6B6A66;--hint:#A8A79F;
+  --accent:#2D5BE3;--accent-bg:#EBF0FD;--accent-text:#1A3A9C;
+  --red:#C0392B;--red-bg:#FDECEB;--red-text:#7B1E15;
+  --amber-bg:#FDF4E3;--amber-text:#7A4F0D;
+  --green-bg:#E8F5E9;--green-text:#1B5E20;
+  --purple-bg:#F0EEFF;--purple-text:#3D2B9E;
+  --teal-bg:#E0F7F2;--teal-text:#0A4F42;
+  --gray-bg:#EFEFED;--gray-text:#4A4A46;
+  --radius:6px;--radius-lg:10px;--radius-xl:14px;
+  --mono:'DM Mono',monospace;--sans:'DM Sans',sans-serif;
+  --shadow:0 1px 4px rgba(0,0,0,0.06),0 4px 16px rgba(0,0,0,0.04);
+}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px}
+.hidden{display:none!important}
+.flex{display:flex;align-items:center}
+.gap4{gap:4px}.gap8{gap:8px}.gap12{gap:12px}
+.fw5{font-weight:500}
+.fs11{font-size:11px}.fs12{font-size:12px}.fs13{font-size:13px}.fs15{font-size:15px}
+.c-muted{color:var(--muted)}.c-hint{color:var(--hint)}.c-red{color:var(--red)}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
+.w100{width:100%}
+
+/* SCREENS */
+.screen{display:none;min-height:100vh;flex-direction:column}
+.screen.active{display:flex}
+
+/* AUTH */
+.center-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem}
+.auth-box{background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-xl);padding:2rem;width:400px;max-width:95vw;box-shadow:var(--shadow)}
+.auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:1.5rem}
+.auth-logo-icon{width:38px;height:38px;background:var(--text);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px;flex-shrink:0}
+.auth-logo-name{font-size:17px;font-weight:500;letter-spacing:-.3px}
+.auth-logo-sub{font-size:10px;color:var(--hint);font-family:var(--mono)}
+.auth-title{font-size:16px;font-weight:500;margin-bottom:4px}
+.auth-sub{font-size:13px;color:var(--muted);margin-bottom:1.25rem;line-height:1.5}
+
+/* SETUP WIZARD */
+.wizard-steps{display:flex;align-items:center;margin-bottom:1.5rem}
+.step{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--hint)}
+.step.active{color:var(--text);font-weight:500}
+.step.done{color:var(--accent)}
+.step-dot{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border-md);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.step.active .step-dot{border-color:var(--text);background:var(--text);color:#fff}
+.step.done .step-dot{border-color:var(--accent);background:var(--accent);color:#fff}
+.step-line{flex:1;height:1px;background:var(--border);margin:0 5px}
+
+/* ROLE BUTTONS */
+.role-btn{width:100%;border:0.5px solid var(--border-md);border-radius:var(--radius-lg);padding:12px 14px;cursor:pointer;background:var(--surface);font-family:var(--sans);text-align:left;display:flex;align-items:center;gap:10px;margin-bottom:8px;transition:border-color .15s,background .15s}
+.role-btn:hover{border-color:var(--border-strong);background:var(--surface2)}
+.role-btn.selected{border-color:var(--accent);background:var(--accent-bg)}
+.role-icon{width:34px;height:34px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.role-icon.manager{background:var(--green-bg);color:var(--green-text)}
+.role-icon.admin{background:var(--amber-bg);color:var(--amber-text)}
+.role-icon.member{background:var(--accent-bg);color:var(--accent-text)}
+.role-label{font-size:13px;font-weight:500;margin-bottom:1px}
+.role-desc{font-size:11px;color:var(--muted)}
+
+/* FIELDS */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-size:12px;font-weight:500;color:var(--muted)}
+.field input,.field select,.field textarea{border:0.5px solid var(--border-md);border-radius:var(--radius);padding:8px 10px;font-size:13px;font-family:var(--sans);background:var(--surface);color:var(--text);width:100%;transition:border-color .15s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:72px;line-height:1.5}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-hint{font-size:11px;color:var(--hint);margin-top:2px}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:36px}
+.pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--hint);background:none;border:none;font-size:16px;display:flex;align-items:center}
+
+/* BUTTONS */
+.btn{border-radius:var(--radius);padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);display:inline-flex;align-items:center;gap:6px;border:none;transition:opacity .15s}
+.btn-primary{background:var(--text);color:#fff}
+.btn-primary:hover{opacity:.82}
+.btn-outline{background:transparent;border:0.5px solid var(--border-md);color:var(--text)}
+.btn-outline:hover{background:var(--surface2)}
+.btn-danger{background:var(--red-bg);color:var(--red-text);border:0.5px solid rgba(192,57,43,.2)}
+.btn-accent{background:var(--accent);color:#fff}
+.btn-accent:hover{opacity:.88}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-xs{padding:3px 8px;font-size:11px}
+.btn-full{width:100%;justify-content:center}
+.btn-icon{padding:6px;border-radius:var(--radius)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* TOPBAR */
+.topbar{background:var(--surface);border-bottom:0.5px solid var(--border);display:flex;align-items:center;padding:0 1.25rem;height:50px;position:sticky;top:0;z-index:100;flex-shrink:0;gap:0}
+.topbar-logo{font-size:13px;font-weight:500;padding-right:1rem;border-right:0.5px solid var(--border);margin-right:4px;display:flex;align-items:center;gap:6px;font-family:var(--mono);white-space:nowrap}
+.topbar-logo-dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.nav-tab{padding:0 .85rem;height:50px;display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.active{color:var(--text);border-bottom:2px solid var(--text)}
+.nav-tab i{font-size:14px}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.chip{border-radius:20px;padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:5px;font-weight:500}
+.chip-manager{background:var(--green-bg);color:var(--green-text)}
+.chip-admin{background:var(--amber-bg);color:var(--amber-text)}
+.chip-siteadmin{background:#FEF3C7;color:#92400E}
+.chip-member{background:var(--accent-bg);color:var(--accent-text)}
+
+/* PAGES */
+.page{display:none;padding:1.75rem 1.25rem;max-width:1100px;margin:0 auto;width:100%}
+.page.active{display:block}
+.page-title{font-size:16px;font-weight:500;margin-bottom:3px}
+.page-sub{font-size:13px;color:var(--muted);margin-bottom:1.5rem}
+
+/* STAT CARDS */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.5rem}
+.stat{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px}
+.stat-label{font-size:11px;color:var(--muted);margin-bottom:6px}
+.stat-val{font-size:24px;font-weight:500;line-height:1}
+.stat-sub{font-size:11px;color:var(--hint);margin-top:4px}
+
+/* STATUS / TYPE BREAKDOWN CARDS */
+.status-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:1.5rem}
+.type-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.5rem}
+.mini-stat{border-radius:var(--radius-lg);padding:12px 14px}
+.mini-stat-label{font-size:11px;margin-bottom:4px}
+.mini-stat-val{font-size:18px;font-weight:500;line-height:1}
+@media (max-width:760px){.status-grid{grid-template-columns:repeat(2,1fr)}.type-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.b-new{background:var(--accent-bg);color:var(--accent-text)}
+.b-est{background:var(--amber-bg);color:var(--amber-text)}
+.b-tender{background:var(--purple-bg);color:var(--purple-text)}
+
+.b-done{background:var(--green-bg);color:var(--green-text)}
+.b-hold{background:#F3F4F6;color:#374151;border:0.5px solid #D1D5DB}
+.b-urgent{background:var(--red-bg);color:var(--red-text)}
+.b-normal{background:var(--gray-bg);color:var(--gray-text)}
+.b-low{background:var(--gray-bg);color:var(--hint)}
+.b-pt{background:var(--purple-bg);color:var(--purple-text)}
+.b-ot{background:var(--teal-bg);color:var(--teal-text)}
+.b-si{background:var(--amber-bg);color:var(--amber-text)}
+.b-bi{background:var(--gray-bg);color:var(--gray-text)}
+
+/* AVATAR */
+.av{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;color:#fff}
+.av-none{background:var(--gray-bg);color:var(--hint);border:0.5px dashed var(--border-md)}
+
+/* KANBAN */
+.kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:start}
+.k-col{background:var(--surface2);border-radius:var(--radius-lg);padding:10px}
+.k-col-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px}
+.k-col-title{font-size:12px;font-weight:500;color:var(--muted)}
+.k-count{font-size:11px;background:var(--surface);border:0.5px solid var(--border);border-radius:20px;padding:1px 7px;color:var(--muted)}
+.k-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:11px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.k-card:hover{border-color:var(--border-md);box-shadow:var(--shadow)}
+.k-card.has-note{border-left:2px solid var(--accent)}
+.k-card-id{font-size:11px;color:var(--hint);margin-bottom:3px;font-family:var(--mono)}
+.k-card-name{font-size:13px;font-weight:500;margin-bottom:7px;line-height:1.4}
+.k-card-meta{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.k-card-ft{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--border)}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-size:11px;font-weight:500;color:var(--muted);padding:8px 10px;border-bottom:0.5px solid var(--border)}
+.tbl td{padding:9px 10px;border-bottom:0.5px solid var(--border);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--surface2)}
+
+/* TEAM GRID */
+.team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.5rem}
+.member-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);padding:1rem}
+.bar-track{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:5px}
+.bar-fill{height:100%;border-radius:3px}
+
+/* SETTINGS */
+.setting-section{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;margin-bottom:1rem}
+.setting-hd{padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.setting-hd-title{font-size:13px;font-weight:500}
+.setting-body{padding:14px 16px}
+.member-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:0.5px solid var(--border)}
+.member-row:last-child{border-bottom:none}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:300;align-items:center;justify-content:center;padding:1rem}
+.modal-bg.show{display:flex}
+.modal{background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-xl);padding:1.5rem;width:480px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow)}
+.modal-title{font-size:15px;font-weight:500;margin-bottom:2px}
+.modal-sub{font-size:12px;color:var(--hint);font-family:var(--mono);margin-bottom:1.25rem}
+.modal-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;gap:8px}
+.modal-row:last-of-type{border-bottom:none}
+.modal-key{color:var(--muted);min-width:90px}
+.divider{height:0.5px;background:var(--border);margin:1rem 0}
+
+/* NOTE ITEMS */
+.note-item{background:var(--surface2);border-radius:var(--radius);padding:10px 12px;margin-bottom:7px;border-left:2px solid var(--accent)}
+.note-item-text{font-size:13px;line-height:1.5}
+.note-item-meta{font-size:11px;color:var(--hint);margin-top:4px;font-family:var(--mono)}
+
+/* MEMBER TICKETS */
+.ticket-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);padding:1.25rem;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+.ticket-card:hover{border-color:var(--border-md)}
+.ticket-card.urg{border-left:3px solid var(--red)}
+.ticket-card.overdue{border:1.5px solid var(--red);background:#FFFAFA}
+.ticket-card.overdue:hover{border-color:#A32D2D}
+.k-card.overdue{border:1.5px solid var(--red);background:#FFFAFA}
+.k-card.overdue:hover{border-color:#A32D2D}
+.overdue-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500;padding:2px 7px;border-radius:20px;background:var(--red-bg);color:var(--red-text);margin-left:5px}
+.overdue-banner{background:var(--red-bg);border:0.5px solid rgba(192,57,43,.25);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:1rem;display:flex;align-items:center;gap:10px}
+.overdue-banner-text{font-size:13px;color:var(--red-text);font-weight:500}
+
+/* SETUP MEMBER ROW */
+.member-setup-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.member-setup-row input{flex:1;border:0.5px solid var(--border-md);border-radius:var(--radius);padding:7px 10px;font-size:13px;font-family:var(--sans);background:var(--surface);color:var(--text)}
+.member-setup-row input:focus{outline:none;border-color:var(--accent)}
+.member-setup-row select{border:0.5px solid var(--border-md);border-radius:var(--radius);padding:7px 10px;font-size:13px;font-family:var(--sans);background:var(--surface);color:var(--text)}
+.color-dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent}
+.color-dot.sel{border-color:var(--text)}
+
+/* AVATAR COLORS */
+.av-0{background:#2D5BE3}.av-1{background:#8B5CF6}.av-2{background:#0D9488}
+.av-3{background:#D97706}.av-4{background:#DC2626}.av-5{background:#059669}
+.av-6{background:#7C3AED}.av-7{background:#C026D3}.av-8{background:#0369A1}
+
+/* LOADING */
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.85);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.spinner{width:32px;height:32px;border:3px solid var(--border-md);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--muted)}
+
+/* TOAST */
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 18px;border-radius:var(--radius-xl);font-size:13px;display:none;z-index:600;align-items:center;gap:8px;box-shadow:var(--shadow);white-space:nowrap}
+.toast.show{display:flex}
+.toast.error{background:var(--red)}
+
+/* SUPABASE CONFIG SCREEN */
+.config-box{background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-xl);padding:2rem;width:480px;max-width:95vw;box-shadow:var(--shadow)}
+.config-step{background:var(--surface2);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:10px;border-left:3px solid var(--accent)}
+.config-step-num{font-size:11px;font-weight:500;color:var(--accent);margin-bottom:3px;font-family:var(--mono)}
+.config-step-text{font-size:13px;color:var(--text);line-height:1.5}
+.code-block{background:var(--gray-bg);border-radius:var(--radius);padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--text);margin-top:6px;word-break:break-all;cursor:pointer;border:0.5px solid var(--border-md)}
+.code-block:hover{background:#E8E7E3}
+
+/* FILTER BAR */
+.filter-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem;padding:10px 12px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg)}
+.filter-bar select{padding:6px 10px;font-size:12px;border:0.5px solid var(--border-md);border-radius:var(--radius);background:var(--surface2);font-family:var(--sans);color:var(--text);cursor:pointer}
+.filter-bar select:focus{outline:none;border-color:var(--accent)}
+.filter-label{font-size:11px;font-weight:500;color:var(--hint);white-space:nowrap}
+.filter-active-count{font-size:11px;font-weight:500;color:var(--accent);margin-left:auto;white-space:nowrap}
+.btn-filter-reset{padding:5px 10px;font-size:11px;border-radius:var(--radius);border:0.5px solid var(--border-md);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--sans)}
+.btn-filter-reset:hover{background:var(--surface2)}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--hint)}
+.empty-state i{font-size:36px;display:block;margin-bottom:10px;opacity:.45}
+.empty-state p{font-size:13px}
+
+/* SYNC INDICATOR */
+.sync-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}
+.sync-dot.online{background:#22c55e}
+.sync-dot.offline{background:var(--red)}
+.sync-dot.syncing{background:#f59e0b;animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── KPI ── */
+.kpi-month-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:1.5rem}
+.kpi-month-btn{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:8px 6px;text-align:center;cursor:pointer;transition:all .15s;font-family:var(--sans)}
+.kpi-month-btn:hover{border-color:var(--border-md);background:var(--surface2)}
+.kpi-month-btn.active{background:var(--text);color:#fff;border-color:var(--text)}
+.kpi-month-btn .kpi-m-label{font-size:11px;font-weight:500;display:block}
+.kpi-month-btn .kpi-m-pts{font-size:15px;font-weight:500;display:block;margin-top:3px}
+.kpi-month-btn.active .kpi-m-pts{color:#fff}
+.kpi-member-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.5rem}
+.kpi-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);padding:1.1rem}
+.kpi-card.top{border-top:3px solid #F59E0B}
+.kpi-total{font-size:32px;font-weight:500;line-height:1;margin:8px 0 4px}
+.kpi-total.positive{color:var(--green-text)}
+.kpi-total.negative{color:var(--red)}
+.kpi-breakdown{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border)}
+.kpi-b-item{text-align:center}
+.kpi-b-val{font-size:14px;font-weight:500}
+.kpi-b-label{font-size:10px;color:var(--hint);margin-top:2px}
+.kpi-entry-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px}
+.kpi-entry-row:last-child{border-bottom:none}
+.kpi-pt-badge{font-size:12px;font-weight:500;padding:2px 8px;border-radius:20px;min-width:44px;text-align:center}
+.kpi-pt-pos{background:var(--green-bg);color:var(--green-text)}
+.kpi-pt-neg{background:var(--red-bg);color:var(--red-text)}
+.kpi-pt-neu{background:var(--gray-bg);color:var(--gray-text)}
+.kpi-type-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;flex-shrink:0}
+.kpi-type-opening{background:#F59E0B}
+.kpi-type-auto{background:var(--accent)}
+.kpi-type-manual{background:#8B5CF6}
+.member-kpi-month{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem}
+.member-kpi-cell{background:var(--surface2);border-radius:var(--radius-lg);padding:10px;text-align:center}
+.member-kpi-cell.current{background:var(--accent-bg);border:0.5px solid rgba(45,91,227,.2)}
+.member-kpi-month-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+.member-kpi-month-pts{font-size:18px;font-weight:500}
+@media(max-width:700px){.kpi-month-grid{grid-template-columns:repeat(3,1fr)}.kpi-member-grid{grid-template-columns:1fr 1fr}.member-kpi-month{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+
+<!-- ══ LOADING OVERLAY ══ -->
+<div class="loading-overlay hidden" id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Loading...</div>
+</div>
+
+<!-- ══ SUPABASE CONFIG SCREEN ══ -->
+<div class="screen active" id="config-screen">
+  <div class="center-wrap">
+    <div class="config-box">
+      <div class="auth-logo">
+        <div class="auth-logo-icon"><i class="ti ti-chart-dots-3"></i></div>
+        <div>
+          <div class="auth-logo-name">EstimaPro <span style="font-size:10px;font-weight:400;color:var(--hint);font-family:var(--mono)">by GUD</span></div>
+          <div class="auth-logo-sub">First-time Supabase configuration</div>
+        </div>
+      </div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:6px">Connect to Supabase</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Supabase project credentials below. This only runs once. Find these in your Supabase dashboard → Project Settings → API.</div>
+
+      <div class="config-step">
+        <div class="config-step-num">Step 1 — Create Supabase project</div>
+        <div class="config-step-text">Go to <strong>supabase.com</strong> → New project → fill in name & password → Create.</div>
+      </div>
+      <div class="config-step">
+        <div class="config-step-num">Step 2 — Run this SQL in Supabase SQL Editor</div>
+        <div class="config-step-text">Copy the SQL below, paste into Supabase → SQL Editor → Run.</div>
+        <div class="code-block" onclick="copySQL()" title="Click to copy">
+          -- Run this in Supabase SQL Editor<br>
+          CREATE TABLE workspaces (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, company text NOT NULL, subtitle text, pw_manager text NOT NULL, pw_admin text NOT NULL, pw_member text NOT NULL, created_at timestamptz DEFAULT now());<br><br>
+          CREATE TABLE members (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE, name text NOT NULL, color int DEFAULT 0, role text DEFAULT 'member', created_at timestamptz DEFAULT now());<br><br>
+          CREATE TABLE site_admins (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE, site_name text NOT NULL, password text NOT NULL, color int DEFAULT 3, created_at timestamptz DEFAULT now());<br><br>
+          CREATE TABLE tickets (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE, ticket_no text, name text NOT NULL, type text, requestor text, priority text DEFAULT 'Normal', status text DEFAULT 'New' CHECK (status IN ('New','In Progress Estimation','In Progress Tender','Done','Hold')), assignee text, deadline date, source text, description text, submitted_by text, site_name text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());<br><br>
+          CREATE TABLE notes (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, ticket_id uuid REFERENCES tickets(id) ON DELETE CASCADE, author text, content text NOT NULL, status_at_time text, created_at timestamptz DEFAULT now());<br><br>
+          ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;<br>
+          ALTER TABLE members ENABLE ROW LEVEL SECURITY;<br>
+          ALTER TABLE site_admins ENABLE ROW LEVEL SECURITY;<br>
+          ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;<br>
+          ALTER TABLE notes ENABLE ROW LEVEL SECURITY;<br><br>
+          CREATE POLICY "allow_all" ON workspaces FOR ALL USING (true) WITH CHECK (true);<br>
+          CREATE POLICY "allow_all" ON members FOR ALL USING (true) WITH CHECK (true);<br>
+          CREATE POLICY "allow_all" ON site_admins FOR ALL USING (true) WITH CHECK (true);<br>
+          CREATE POLICY "allow_all" ON tickets FOR ALL USING (true) WITH CHECK (true);<br>
+          CREATE POLICY "allow_all" ON notes FOR ALL USING (true) WITH CHECK (true);
+        </div>
+      </div>
+      <div class="config-step">
+        <div class="config-step-num">Step 3 — Paste your credentials here</div>
+        <div class="config-step-text">Project Settings → API → copy Project URL and anon public key.</div>
+      </div>
+
+      <div class="field mt12">
+        <label>Supabase Project URL</label>
+        <input type="text" id="cfg-url" placeholder="https://xxxxxxxxxxxx.supabase.co">
+      </div>
+      <div class="field">
+        <label>Supabase Anon Key</label>
+        <input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+        <div class="field-hint">This is the public anon key, not the secret key.</div>
+      </div>
+      <div class="field-hint c-red hidden mb8" id="cfg-err">Cannot connect. Check URL and key, then try again.</div>
+      <button class="btn btn-primary btn-full" onclick="saveConfig()"><i class="ti ti-plug-connected" style="font-size:14px"></i>Connect & continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SETUP WIZARD ══ -->
+<div class="screen" id="setup-screen">
+  <div class="center-wrap">
+    <div class="auth-box" style="width:460px">
+      <div class="auth-logo">
+        <div class="auth-logo-icon"><i class="ti ti-chart-dots-3"></i></div>
+        <div>
+          <div class="auth-logo-name">EstimaPro <span style="font-size:10px;font-weight:400;color:var(--hint);font-family:var(--mono)">by GUD</span></div>
+          <div class="auth-logo-sub">Workspace setup</div>
+        </div>
+      </div>
+      <div class="wizard-steps" id="wizard-steps">
+        <div class="step active" id="ws-1"><div class="step-dot">1</div><span>Company</span></div>
+        <div class="step-line"></div>
+        <div class="step" id="ws-2"><div class="step-dot">2</div><span>Team</span></div>
+        <div class="step-line"></div>
+        <div class="step" id="ws-3"><div class="step-dot">3</div><span>Passwords</span></div>
+        <div class="step-line"></div>
+        <div class="step" id="ws-4"><div class="step-dot">4</div><span>Done</span></div>
+      </div>
+
+      <div id="step-1">
+        <div class="auth-title">Set up your workspace</div>
+        <div class="auth-sub">Configure once. Change anytime in Settings.</div>
+        <div class="field"><label>Company / project name</label><input type="text" id="s-company" placeholder="e.g. Karya Maju Engineering"></div>
+        <div class="field"><label>Subtitle (optional)</label><input type="text" id="s-subtitle" placeholder="e.g. Estimation Division"></div>
+        <button class="btn btn-primary btn-full mt8" onclick="wizardNext(1)">Next <i class="ti ti-arrow-right" style="font-size:14px"></i></button>
+      </div>
+
+      <div id="step-2" class="hidden">
+        <div class="auth-title">Add your team</div>
+        <div class="auth-sub">Add estimators. Set role: Admin (inputs tickets) or Member (updates progress).</div>
+        <div id="members-setup-list"></div>
+        <button class="btn btn-outline btn-sm mt4 mb16" onclick="addMemberRow()"><i class="ti ti-plus" style="font-size:13px"></i>Add member</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline" onclick="wizardBack(2)"><i class="ti ti-arrow-left" style="font-size:14px"></i></button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="wizardNext(2)">Next <i class="ti ti-arrow-right" style="font-size:14px"></i></button>
+        </div>
+      </div>
+
+      <div id="step-3" class="hidden">
+        <div class="auth-title">Set passwords</div>
+        <div class="auth-sub">Three separate passwords for three roles.</div>
+        <div class="field">
+          <label>Manager password — full access</label>
+          <div class="pw-wrap"><input type="password" id="s-pw-mgr" placeholder="Min. 4 characters"><button class="pw-toggle" onclick="togglePw('s-pw-mgr',this)" tabindex="-1"><i class="ti ti-eye"></i></button></div>
+        </div>
+        <div class="field">
+          <label>Admin password — input & manage tickets</label>
+          <div class="pw-wrap"><input type="password" id="s-pw-adm" placeholder="Min. 4 characters"><button class="pw-toggle" onclick="togglePw('s-pw-adm',this)" tabindex="-1"><i class="ti ti-eye"></i></button></div>
+        </div>
+        <div class="field">
+          <label>Member password — update status & progress</label>
+          <div class="pw-wrap"><input type="password" id="s-pw-mem" placeholder="Min. 4 characters"><button class="pw-toggle" onclick="togglePw('s-pw-mem',this)" tabindex="-1"><i class="ti ti-eye"></i></button></div>
+          <div class="field-hint">All members share this password. They choose their name on login.</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline" onclick="wizardBack(3)"><i class="ti ti-arrow-left" style="font-size:14px"></i></button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="wizardNext(3)">Finish setup <i class="ti ti-check" style="font-size:14px"></i></button>
+        </div>
+      </div>
+
+      <div id="step-4" class="hidden" style="text-align:center">
+        <div style="font-size:38px;margin-bottom:12px">🎉</div>
+        <div class="auth-title">Workspace created!</div>
+        <div class="auth-sub" style="margin-bottom:1.25rem">Data is saved to Supabase. Share member links from Settings after login.</div>
+        <button class="btn btn-primary btn-full" onclick="goToLogin()">Go to login <i class="ti ti-login" style="font-size:14px"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div class="screen" id="login-screen">
+  <div class="center-wrap">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <div class="auth-logo-icon"><i class="ti ti-chart-dots-3"></i></div>
+        <div>
+          <div class="auth-logo-name" id="login-company-name">EstimaPro <span style="font-size:10px;font-weight:400;color:var(--hint);font-family:var(--mono)">by GUD</span></div>
+          <div class="auth-logo-sub" id="login-company-sub">Estimation Management System</div>
+        </div>
+      </div>
+      <div id="login-step-role">
+        <div class="auth-title">Sign in</div>
+        <div class="auth-sub mb16">Choose your role.</div>
+        <div class="role-btn" id="rb-manager" onclick="selectRole('manager')">
+          <div class="role-icon manager"><i class="ti ti-shield-check"></i></div>
+          <div><div class="role-label">Manager</div><div class="role-desc">Full access — dashboard, board, team settings</div></div>
+        </div>
+        <div class="role-btn" id="rb-admin" onclick="selectRole('admin')">
+          <div class="role-icon admin"><i class="ti ti-clipboard-plus"></i></div>
+          <div><div class="role-label">Admin</div><div class="role-desc">Input & manage tickets, view board</div></div>
+        </div>
+        <div class="role-btn" id="rb-siteadmin" onclick="selectRole('siteadmin')">
+          <div class="role-icon" style="background:#FEF3C7;color:#92400E"><i class="ti ti-map-pin"></i></div>
+          <div><div class="role-label">Admin Site</div><div class="role-desc">Input tickets for your site, view your own tickets only</div></div>
+        </div>
+        <div class="role-btn" id="rb-member" onclick="selectRole('member')">
+          <div class="role-icon member"><i class="ti ti-user-check"></i></div>
+          <div><div class="role-label">Member</div><div class="role-desc">View assigned tickets, update status & progress</div></div>
+        </div>
+        <button class="btn btn-primary btn-full mt12" onclick="goToPassword()">Continue <i class="ti ti-arrow-right" style="font-size:14px"></i></button>
+      </div>
+      <div id="login-step-pw" class="hidden">
+        <div class="auth-title" id="login-pw-title">Login</div>
+        <div class="auth-sub">Enter your password to continue.</div>
+        <div class="field hidden" id="login-name-wrap">
+          <label>Your name</label>
+          <select id="login-member-name"><option value="">-- Select --</option></select>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <div class="pw-wrap">
+            <input type="password" id="login-pw" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
+            <button class="pw-toggle" onclick="togglePw('login-pw',this)" tabindex="-1"><i class="ti ti-eye"></i></button>
+          </div>
+          <div class="field-hint c-red hidden" id="login-err">Incorrect password. Try again.</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline" onclick="backToRole()"><i class="ti ti-arrow-left" style="font-size:14px"></i></button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="doLogin()"><i class="ti ti-login" style="font-size:14px"></i>Sign in</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MANAGER APP ══ -->
+<div class="screen" id="manager-screen">
+  <div class="topbar">
+    <div class="topbar-logo"><span class="topbar-logo-dot"></span><span id="mgr-co">EstimaPro</span><span style="font-size:9px;font-weight:400;color:var(--hint);margin-left:4px;font-family:var(--mono)">by GUD</span></div>
+    <div class="nav-tab active" onclick="mgrNav('dashboard',this)"><i class="ti ti-chart-bar"></i>Dashboard</div>
+    <div class="nav-tab" onclick="mgrNav('board',this)"><i class="ti ti-layout-kanban"></i>Board</div>
+    <div class="nav-tab" onclick="mgrNav('tickets',this)"><i class="ti ti-list"></i>Tickets</div>
+    <div class="nav-tab" onclick="mgrNav('kpi',this)"><i class="ti ti-trophy"></i>KPI</div>
+    <div class="nav-tab" onclick="mgrNav('settings',this)"><i class="ti ti-settings"></i>Settings</div>
+    <div class="topbar-right">
+      <span class="fs11 c-hint flex gap4"><span class="sync-dot" id="mgr-sync-dot"></span><span id="mgr-sync-label"></span></span>
+      <span class="chip chip-manager"><i class="ti ti-shield" style="font-size:12px"></i>Manager</span>
+      <button class="btn btn-outline btn-sm" onclick="logout()"><i class="ti ti-logout" style="font-size:13px"></i></button>
+    </div>
+  </div>
+  <div id="mgr-dashboard" class="page active">
+    <div class="page-title">Dashboard</div><div class="page-sub">Live workload from Supabase.</div>
+    <div class="stat-grid" id="mgr-stats"></div>
+    <div class="fs12 fw5 c-muted mb8">Tickets by status</div>
+    <div class="status-grid" id="mgr-status-grid"></div>
+    <div class="fs12 fw5 c-muted mb8">Tickets by type</div>
+    <div class="type-grid" id="mgr-type-grid"></div>
+    <div class="fs12 fw5 c-muted mb8">Workload per estimator</div>
+    <div class="team-grid" id="mgr-team"></div>
+    <div class="fs12 fw5 c-muted mb8">Recent tickets</div>
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);overflow:hidden" id="mgr-recent"></div>
+  </div>
+  <div id="mgr-board" class="page">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:10px">
+      <div><div class="page-title">Estimation board</div><div class="page-sub">Click card to view, assign or update.</div></div>
+    </div>
+    <div class="filter-bar">
+      <span class="filter-label">Filter:</span>
+      <select id="filter-est" onchange="renderBoard()"><option value="all">All members</option><option value="__unassigned">Unassigned</option></select>
+      <select id="filter-status-board" onchange="renderBoard()">
+        <option value="all">All status</option>
+        <option>New</option><option>In Progress Estimation</option><option>In Progress Tender</option><option>Done</option><option>Hold</option>
+      </select>
+      <select id="filter-type-board" onchange="renderBoard()">
+        <option value="all">All types</option>
+        <option>Project Tender</option><option>Ops Tender</option><option>Site Instruction / Site Memo</option><option>Budgeting Internal</option>
+      </select>
+      <span class="filter-active-count" id="mgr-board-count"></span>
+      <button class="btn-filter-reset" onclick="resetBoardFilter('mgr')">Reset</button>
+    </div>
+    <div class="kanban" id="kanban"></div>
+  </div>
+  <div id="mgr-tickets" class="page">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:10px">
+      <div><div class="page-title">All tickets</div><div class="page-sub">Complete list from Supabase.</div></div>
+    </div>
+    <div class="filter-bar">
+      <span class="filter-label">Filter:</span>
+      <select id="filter-tbl-member" onchange="renderTable()"><option value="all">All members</option><option value="__unassigned">Unassigned</option></select>
+      <select id="filter-tbl-status" onchange="renderTable()">
+        <option value="all">All status</option>
+        <option>New</option><option>In Progress Estimation</option><option>In Progress Tender</option><option>Done</option><option>Hold</option>
+      </select>
+      <select id="filter-tbl-type" onchange="renderTable()">
+        <option value="all">All types</option>
+        <option>Project Tender</option><option>Ops Tender</option><option>Site Instruction / Site Memo</option><option>Budgeting Internal</option>
+      </select>
+      <span class="filter-active-count" id="mgr-tbl-count"></span>
+      <button class="btn-filter-reset" onclick="resetTableFilter('mgr')">Reset</button>
+    </div>
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;overflow-x:auto"><table class="tbl" id="tickets-tbl"></table></div>
+  </div>
+  <div id="mgr-kpi" class="page">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1.5rem">
+      <div><div class="page-title">KPI Dashboard</div><div class="page-sub">Point per member. Auto from tickets + manual bonus from manager.</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="kpi-year-sel" style="padding:7px 10px;font-size:13px;border:0.5px solid var(--border-md);border-radius:var(--radius);background:var(--surface);font-family:var(--sans)" onchange="renderKPI()"></select>
+        <button class="btn btn-outline btn-sm" onclick="openKPISettings()"><i class="ti ti-settings" style="font-size:13px"></i>KPI Settings</button>
+        <button class="btn btn-accent btn-sm" onclick="openAddOpening()"><i class="ti ti-star" style="font-size:13px"></i>Set opening points</button>
+      </div>
+    </div>
+    <div class="fs12 fw5 c-muted mb8">Select month</div>
+    <div class="kpi-month-grid" id="kpi-month-grid"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="fs12 fw5 c-muted" id="kpi-month-label"></div>
+      <button class="btn btn-outline btn-sm" onclick="openAddBonus()"><i class="ti ti-plus" style="font-size:13px"></i>Add bonus / penalty</button>
+    </div>
+    <div class="kpi-member-grid" id="kpi-member-grid"></div>
+    <div class="fs12 fw5 c-muted mb8">Transaction history — <span id="kpi-history-label"></span></div>
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);overflow:hidden" id="kpi-history"></div>
+  </div>
+
+  <div id="mgr-settings" class="page">
+    <div class="setting-section mb16">
+      <div class="setting-hd"><span class="setting-hd-title">Workspace</span></div>
+      <div class="setting-body">
+        <div class="field-row">
+          <div class="field"><label>Company name</label><input type="text" id="set-company"></div>
+          <div class="field"><label>Subtitle</label><input type="text" id="set-subtitle"></div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="saveWorkspace()"><i class="ti ti-device-floppy" style="font-size:13px"></i>Save</button>
+      </div>
+    </div>
+    <div class="setting-section mb16">
+      <div class="setting-hd"><span class="setting-hd-title">Team members (Estimators)</span><button class="btn btn-outline btn-sm" onclick="openAddMember()"><i class="ti ti-plus" style="font-size:13px"></i>Add</button></div>
+      <div style="padding:0" id="settings-member-list"></div>
+    </div>
+    <div class="setting-section mb16">
+      <div class="setting-hd"><span class="setting-hd-title">Site Admins</span><button class="btn btn-outline btn-sm" onclick="openAddSiteAdmin()"><i class="ti ti-plus" style="font-size:13px"></i>Add site</button></div>
+      <div style="padding:0" id="settings-siteadmin-list"></div>
+    </div>
+    <div class="setting-section mb16">
+      <div class="setting-hd"><span class="setting-hd-title">Change passwords</span></div>
+      <div class="setting-body">
+        <div class="field-row">
+          <div class="field"><label>Manager password</label><div class="pw-wrap"><input type="password" id="set-pw-mgr" placeholder="Leave blank to keep"><button class="pw-toggle" onclick="togglePw('set-pw-mgr',this)" tabindex="-1"><i class="ti ti-eye"></i></button></div></div>
+          <div class="field"><label>Admin password</label><div class="pw-wrap"><input type="password" id="set-pw-adm" placeholder="Leave blank to keep"><button class="pw-toggle" onclick="togglePw('set-pw-adm',this)" tabindex="-1"><i class="ti ti-eye"></i></button></div></div>
+        </div>
+        <div class="field" style="max-width:260px">
+          <label>Member password</label><div class="pw-wrap"><input type="password" id="set-pw-mem" placeholder="Leave blank to keep"><button class="pw-toggle" onclick="togglePw('set-pw-mem',this)" tabindex="-1"><i class="ti ti-eye"></i></button></div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="savePasswords()"><i class="ti ti-key" style="font-size:13px"></i>Update passwords</button>
+      </div>
+    </div>
+    <div class="setting-section">
+      <div class="setting-hd"><span class="setting-hd-title">New workspace</span></div>
+      <div class="setting-body">
+        <p class="fs13 c-muted mb12">Start fresh for a new company or team. Current data stays in Supabase under a separate workspace record.</p>
+        <button class="btn btn-accent btn-sm" onclick="startNewWorkspace()"><i class="ti ti-refresh" style="font-size:13px"></i>Setup new workspace</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADMIN APP ══ -->
+<div class="screen" id="admin-screen">
+  <div class="topbar">
+    <div class="topbar-logo"><span class="topbar-logo-dot"></span><span id="adm-co">EstimaPro</span><span style="font-size:9px;font-weight:400;color:var(--hint);margin-left:4px;font-family:var(--mono)">by GUD</span></div>
+    <div class="nav-tab active" onclick="admNav('new',this)"><i class="ti ti-plus"></i>New request</div>
+    <div class="nav-tab" onclick="admNav('board',this)"><i class="ti ti-layout-kanban"></i>Board</div>
+    <div class="nav-tab" onclick="admNav('tickets',this)"><i class="ti ti-list"></i>All tickets</div>
+    <div class="topbar-right">
+      <span class="fs11 c-hint flex gap4"><span class="sync-dot" id="adm-sync-dot"></span><span id="adm-sync-label"></span></span>
+      <span class="chip chip-admin"><i class="ti ti-clipboard-plus" style="font-size:12px"></i>Admin</span>
+      <button class="btn btn-outline btn-sm" onclick="logout()"><i class="ti ti-logout" style="font-size:13px"></i></button>
+    </div>
+  </div>
+  <div id="adm-new" class="page active">
+    <div class="page-title">New estimation request</div><div class="page-sub">Ticket auto-generated and saved to Supabase.</div>
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem;max-width:640px">
+      <div class="field-row">
+        <div class="field"><label>Project / work name</label><input type="text" id="af-name" placeholder="e.g. Office Building Phase 2"></div>
+        <div class="field"><label>Requested by</label><input type="text" id="af-req" placeholder="Name or department"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Work type</label>
+          <select id="af-type">
+            <option value="">-- Select type --</option>
+            <option>Project Tender</option><option>Ops Tender</option>
+            <option>Site Instruction / Site Memo</option><option>Budgeting Internal</option>
+          </select>
+        </div>
+        <div class="field"><label>Priority</label>
+          <select id="af-pri"><option value="">-- Select --</option><option>Urgent</option><option>Normal</option><option>Low</option></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Required by date</label><input type="date" id="af-date"></div>
+        <div class="field"><label>Assign to</label><select id="af-assign"><option value="">Unassigned</option></select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Request source</label>
+          <select id="af-src"><option value="">-- How it came in --</option><option>WhatsApp</option><option>Email</option><option>Verbal / meeting</option></select>
+        </div>
+        <div></div>
+      </div>
+      <div class="field"><label>Brief description</label><textarea id="af-desc" placeholder="Scope, location, or key details..."></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary" onclick="submitTicket('admin')"><i class="ti ti-send" style="font-size:14px"></i>Submit request</button>
+        <button class="btn btn-outline" onclick="clearAdminForm()">Clear</button>
+      </div>
+    </div>
+  </div>
+  <div id="adm-board" class="page">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:10px">
+      <div><div class="page-title">Board</div><div class="page-sub">Click card to view details or update.</div></div>
+    </div>
+    <div class="filter-bar">
+      <span class="filter-label">Filter:</span>
+      <select id="adm-filter-est" onchange="renderAdminBoard()"><option value="all">All members</option><option value="__unassigned">Unassigned</option></select>
+      <select id="adm-filter-status" onchange="renderAdminBoard()">
+        <option value="all">All status</option>
+        <option>New</option><option>In Progress Estimation</option><option>In Progress Tender</option><option>Done</option><option>Hold</option>
+      </select>
+      <select id="adm-filter-type" onchange="renderAdminBoard()">
+        <option value="all">All types</option>
+        <option>Project Tender</option><option>Ops Tender</option><option>Site Instruction / Site Memo</option><option>Budgeting Internal</option>
+      </select>
+      <span class="filter-active-count" id="adm-board-count"></span>
+      <button class="btn-filter-reset" onclick="resetBoardFilter('adm')">Reset</button>
+    </div>
+    <div class="kanban" id="adm-kanban"></div>
+  </div>
+  <div id="adm-tickets" class="page">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:10px">
+      <div><div class="page-title">All tickets</div><div class="page-sub">Full list. Click Edit to update any ticket.</div></div>
+    </div>
+    <div class="filter-bar">
+      <span class="filter-label">Filter:</span>
+      <select id="adm-filter-tbl-member" onchange="renderAdminTable()"><option value="all">All members</option><option value="__unassigned">Unassigned</option></select>
+      <select id="adm-filter-tbl-status" onchange="renderAdminTable()">
+        <option value="all">All status</option>
+        <option>New</option><option>In Progress Estimation</option><option>In Progress Tender</option><option>Done</option><option>Hold</option>
+      </select>
+      <select id="adm-filter-tbl-type" onchange="renderAdminTable()">
+        <option value="all">All types</option>
+        <option>Project Tender</option><option>Ops Tender</option><option>Site Instruction / Site Memo</option><option>Budgeting Internal</option>
+      </select>
+      <span class="filter-active-count" id="adm-tbl-count"></span>
+      <button class="btn-filter-reset" onclick="resetTableFilter('adm')">Reset</button>
+    </div>
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;overflow-x:auto"><table class="tbl" id="adm-tickets-tbl"></table></div>
+  </div>
+</div>
+
+<!-- ══ SITE ADMIN APP ══ -->
+<div class="screen" id="siteadmin-screen">
+  <div class="topbar">
+    <div class="topbar-logo"><span class="topbar-logo-dot"></span><span id="sa-co">EstimaPro</span><span style="font-size:9px;font-weight:400;color:var(--hint);margin-left:4px;font-family:var(--mono)">by GUD</span></div>
+    <div class="nav-tab active" onclick="saNav('new',this)"><i class="ti ti-plus"></i>New request</div>
+    <div class="nav-tab" onclick="saNav('mytickets',this)"><i class="ti ti-list"></i>My tickets</div>
+    <div class="topbar-right">
+      <span class="fs11 c-hint flex gap4"><span class="sync-dot" id="sa-sync-dot"></span><span id="sa-sync-label"></span></span>
+      <span class="chip chip-siteadmin"><i class="ti ti-map-pin" style="font-size:12px"></i><span id="sa-chip-name"></span></span>
+      <button class="btn btn-outline btn-sm" onclick="logout()"><i class="ti ti-logout" style="font-size:13px"></i></button>
+    </div>
+  </div>
+  <div id="sa-new" class="page active">
+    <div class="page-title">New estimation request</div>
+    <div class="page-sub" id="sa-new-sub">Submit a ticket from your site.</div>
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem;max-width:640px">
+      <div class="field-row">
+        <div class="field"><label>Project / work name</label><input type="text" id="sf-name" placeholder="e.g. Pump Station Repair"></div>
+        <div class="field"><label>Requested by</label><input type="text" id="sf-req" placeholder="Name or department"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Work type</label>
+          <select id="sf-type">
+            <option value="">-- Select type --</option>
+            <option>Project Tender</option><option>Ops Tender</option>
+            <option>Site Instruction / Site Memo</option><option>Budgeting Internal</option>
+          </select>
+        </div>
+        <div class="field"><label>Priority</label>
+          <select id="sf-pri"><option value="">-- Select --</option><option>Urgent</option><option>Normal</option><option>Low</option></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Required by date</label><input type="date" id="sf-date"></div>
+        <div class="field"><label>Request source</label>
+          <select id="sf-src"><option value="">-- How it came in --</option><option>WhatsApp</option><option>Email</option><option>Verbal / meeting</option></select>
+        </div>
+      </div>
+      <div class="field"><label>Brief description</label><textarea id="sf-desc" placeholder="Scope, location, or key details for the estimator..."></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary" onclick="submitSiteTicket()"><i class="ti ti-send" style="font-size:14px"></i>Submit request</button>
+        <button class="btn btn-outline" onclick="clearSiteForm()">Clear</button>
+      </div>
+    </div>
+  </div>
+  <div id="sa-mytickets" class="page">
+    <div class="page-title" id="sa-list-title">My site tickets</div>
+    <div class="page-sub">Tickets submitted from your site. Click to view progress or update date.</div>
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)" id="sa-stats"></div>
+    <div id="sa-ticket-list"></div>
+  </div>
+</div>
+
+<!-- ══ MEMBER APP ══ -->
+<div class="screen" id="member-screen">
+  <div class="topbar">
+    <div class="topbar-logo"><span class="topbar-logo-dot"></span><span id="mem-co">EstimaPro</span><span style="font-size:9px;font-weight:400;color:var(--hint);margin-left:4px;font-family:var(--mono)">by GUD</span></div>
+    <div class="nav-tab active" onclick="memNav('my',this)"><i class="ti ti-clipboard-list"></i>My tickets</div>
+    <div class="nav-tab" onclick="memNav('board',this)"><i class="ti ti-layout-kanban"></i>Team board</div>
+    <div class="nav-tab" onclick="memNav('kpi',this)"><i class="ti ti-trophy"></i>My KPI</div>
+    <div class="topbar-right">
+      <span class="fs11 c-hint flex gap4"><span class="sync-dot" id="mem-sync-dot"></span><span id="mem-sync-label"></span></span>
+      <span class="chip chip-member" id="mem-chip"><i class="ti ti-user" style="font-size:12px"></i><span id="mem-chip-name"></span></span>
+      <button class="btn btn-outline btn-sm" onclick="logout()"><i class="ti ti-logout" style="font-size:13px"></i></button>
+    </div>
+  </div>
+  <div id="mem-my" class="page active">
+    <div class="page-title" id="mem-page-title">My tickets</div>
+    <div class="page-sub">Click a ticket to update status or add a progress note.</div>
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)" id="mem-stats"></div>
+    <div id="mem-urgent"></div>
+    <div id="mem-list"></div>
+  </div>
+  <div id="mem-board" class="page">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:10px">
+      <div><div class="page-title">Team board</div><div class="page-sub">View-only overview of all tickets.</div></div>
+    </div>
+    <div class="filter-bar">
+      <span class="filter-label">Filter:</span>
+      <select id="mem-filter-member" onchange="renderMemberBoard()"><option value="all">All members</option><option value="__unassigned">Unassigned</option></select>
+      <select id="mem-filter-status" onchange="renderMemberBoard()">
+        <option value="all">All status</option>
+        <option>New</option><option>In Progress Estimation</option><option>In Progress Tender</option><option>Done</option><option>Hold</option>
+      </select>
+      <select id="mem-filter-type" onchange="renderMemberBoard()">
+        <option value="all">All types</option>
+        <option>Project Tender</option><option>Ops Tender</option><option>Site Instruction / Site Memo</option><option>Budgeting Internal</option>
+      </select>
+      <span class="filter-active-count" id="mem-board-count"></span>
+      <button class="btn-filter-reset" onclick="resetBoardFilter('mem')">Reset</button>
+    </div>
+    <div class="kanban" id="mem-kanban"></div>
+  </div>
+  <div id="mem-kpi" class="page">
+    <div class="page-title" id="mem-kpi-title">My KPI</div>
+    <div class="page-sub">Your point history this year. Updated automatically when tickets are completed.</div>
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.5rem" id="mem-kpi-stats"></div>
+    <div class="fs12 fw5 c-muted mb8">Monthly overview</div>
+    <div class="member-kpi-month" id="mem-kpi-months"></div>
+    <div class="fs12 fw5 c-muted mb8">Transaction history — this year</div>
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);overflow:hidden" id="mem-kpi-history"></div>
+  </div>
+</div>
+
+<!-- ══ SHARED MODAL ══ -->
+<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast" id="toast"><i class="ti ti-check" style="font-size:15px"></i><span id="toast-msg"></span></div>
+
+<script>
+// ── CONSTANTS ─────────────────────────────────────────────────
+const STATUS_COLS = ['New','In Progress Estimation','In Progress Tender','Done','Hold'];
+const STATUS_CLS  = {'New':'b-new','In Progress Estimation':'b-est','In Progress Tender':'b-tender','Hold':'b-hold','Done':'b-done'};
+const TYPE_SHORT  = {'Project Tender':'Proj. Tender','Ops Tender':'Ops Tender','Site Instruction / Site Memo':'Site Instr.','Budgeting Internal':'Budgeting'};
+const TYPE_CLS    = {'Project Tender':'b-pt','Ops Tender':'b-ot','Site Instruction / Site Memo':'b-si','Budgeting Internal':'b-bi'};
+const PAL         = ['#2D5BE3','#8B5CF6','#0D9488','#D97706','#DC2626','#059669','#7C3AED','#C026D3','#0369A1'];
+
+// ── HARDCODED CONFIG ──────────────────────────────────────────
+const HARDCODED_URL = 'https://vvhyvsmjmzmzzsoniqmw.supabase.co';
+const HARDCODED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2aHl2c21qbXptenpzb25pcW13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTc2MTAsImV4cCI6MjA5NDMzMzYxMH0.kzbhm_NPz3c-CHoBUYttq7Td7gt86iPFFNc-fmbVSM8';
+const HARDCODED_WS  = '73e3be57-c404-4463-b336-8d429e022477';
+
+// ── STATE ────────────────────────────────────────────────────
+let SB_URL = HARDCODED_URL, SB_KEY = HARDCODED_KEY;
+let currentRole = null, currentMember = null, currentWorkspace = null, currentSiteAdmin = null;
+let selectedRole = null;
+let allMembers = [], allTickets = [], allNotes = [], allSiteAdmins = [];
+let allKpiEntries = [], kpiSettings = null;
+let kpiSelectedMonth = new Date().getMonth() + 1;
+let pollingTimer = null;
+
+function loadConfig(){
+  SB_URL = HARDCODED_URL;
+  SB_KEY = HARDCODED_KEY;
+  const wsId = HARDCODED_WS;
+  return {url:SB_URL, key:SB_KEY, wsId};
+}
+function saveConfig2(url,key){ /* credentials fixed, no-op */ }
+function saveWsId(id){ /* workspace fixed, no-op */ }
+function clearWsId(){ /* workspace fixed, no-op */ }
+
+// ── SUPABASE API ──────────────────────────────────────────────
+async function sb(method, path, body=null){
+  const opts = {
+    method,
+    headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'return=representation'}
+  };
+  if(body) opts.body = JSON.stringify(body);
+  const res = await fetch(SB_URL+'/rest/v1/'+path, opts);
+  if(!res.ok){ const e=await res.text(); throw new Error(e); }
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : null;
+}
+const sbGet    = (path)         => sb('GET', path);
+const sbPost   = (path, body)   => sb('POST', path, body);
+const sbPatch  = (path, body)   => sb('PATCH', path, body);
+const sbDelete = (path)         => sb('DELETE', path);
+
+// ── SCREENS ──────────────────────────────────────────────────
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function showLoading(msg='Loading...'){
+  document.getElementById('loading-text').textContent=msg;
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+function hideLoading(){ document.getElementById('loading-overlay').classList.add('hidden'); }
+
+// ── SYNC INDICATOR ────────────────────────────────────────────
+function setSyncStatus(role, status){
+  const dot = document.getElementById(role+'-sync-dot');
+  const lbl = document.getElementById(role+'-sync-label');
+  if(!dot||!lbl) return;
+  dot.className = 'sync-dot '+status;
+  lbl.textContent = status==='online'?'Live':status==='syncing'?'Syncing...':'Offline';
+}
+
+// ── INIT ────────────────────────────────────────────────────
+async function init(){
+  // Credentials and workspace are hardcoded — skip config screen entirely
+  try{
+    showLoading('Connecting...');
+    await sbGet('workspaces?select=id&limit=1');
+    hideLoading();
+  } catch(e){
+    hideLoading();
+    alert('Cannot connect to Supabase. Check your network.');
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const memberParam = params.get('member');
+
+  showLoading('Loading workspace...');
+  try{
+    await loadWorkspaceAndShowLogin(HARDCODED_WS, memberParam);
+  } catch(e){ hideLoading(); alert('Workspace not found.'); }
+}
+
+async function loadWorkspaceAndShowLogin(wsId, memberParam=null){
+  const rows = await sbGet(`workspaces?id=eq.${wsId}&select=*`);
+  hideLoading();
+  if(!rows||rows.length===0){ clearWsId(); showScreen('setup-screen'); setStep(1); return; }
+  currentWorkspace = rows[0];
+  document.getElementById('login-company-name').childNodes[0].textContent = currentWorkspace.company+' ';
+  document.getElementById('login-company-sub').textContent = currentWorkspace.subtitle||'Estimation Management System';
+
+  allMembers    = await sbGet(`members?workspace_id=eq.${wsId}&order=name`)||[];
+  allSiteAdmins = await sbGet(`site_admins?workspace_id=eq.${wsId}&order=site_name`)||[];
+
+  if(memberParam){
+    const m = allMembers.find(x=>x.name===decodeURIComponent(memberParam));
+    if(m){
+      selectedRole='member';
+      showScreen('login-screen');
+      goToPassword();
+      const sel = document.getElementById('login-member-name');
+      if(sel){
+        sel.innerHTML='<option value="">-- Select --</option>'+allMembers.filter(x=>x.role==='member'||!x.role).map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+        sel.value = m.id;
+      }
+      return;
+    }
+  }
+  showScreen('login-screen');
+}
+
+// ── CONFIG SCREEN ─────────────────────────────────────────────
+async function saveConfig(){
+  const url = document.getElementById('cfg-url').value.trim().replace(/\/$/,'');
+  const key = document.getElementById('cfg-key').value.trim();
+  const err = document.getElementById('cfg-err');
+  if(!url||!key){ err.classList.remove('hidden'); err.textContent='Both fields are required.'; return; }
+  showLoading('Testing connection...');
+  try{
+    SB_URL=url; SB_KEY=key;
+    await sbGet('workspaces?select=id&limit=1');
+    saveConfig2(url,key);
+    hideLoading();
+    err.classList.add('hidden');
+    // Check workspace
+    const ws = await sbGet('workspaces?select=id&limit=1');
+    if(!ws||ws.length===0){ showScreen('setup-screen'); setStep(1); }
+    else { saveWsId(ws[0].id); await loadWorkspaceAndShowLogin(ws[0].id); }
+  } catch(e){
+    hideLoading(); SB_URL=''; SB_KEY='';
+    err.textContent='Cannot connect. Check URL and key.';
+    err.classList.remove('hidden');
+  }
+}
+
+function copySQL(){
+  const sql = `CREATE TABLE workspaces (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, company text NOT NULL, subtitle text, pw_manager text NOT NULL, pw_admin text NOT NULL, pw_member text NOT NULL, created_at timestamptz DEFAULT now());
+CREATE TABLE members (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE, name text NOT NULL, color int DEFAULT 0, role text DEFAULT 'member', created_at timestamptz DEFAULT now());
+CREATE TABLE site_admins (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE, site_name text NOT NULL, password text NOT NULL, color int DEFAULT 3, created_at timestamptz DEFAULT now());
+CREATE TABLE tickets (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE, ticket_no text, name text NOT NULL, type text, requestor text, priority text DEFAULT 'Normal', status text DEFAULT 'New' CHECK (status IN ('New','In Progress Estimation','In Progress Tender','Done','Hold')), assignee text, deadline date, source text, description text, submitted_by text, site_name text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
+CREATE TABLE notes (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, ticket_id uuid REFERENCES tickets(id) ON DELETE CASCADE, author text, content text NOT NULL, status_at_time text, created_at timestamptz DEFAULT now());
+ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE site_admins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_all" ON workspaces FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON members FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON site_admins FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON tickets FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON notes FOR ALL USING (true) WITH CHECK (true);`;
+  navigator.clipboard.writeText(sql).then(()=>toast('SQL copied!')).catch(()=>toast('Copy manually from the box'));
+}
+
+// ── SETUP WIZARD ─────────────────────────────────────────────
+let wizardMembers=[], memberColorIdx=0;
+
+function initSetup(){
+  wizardMembers=[]; memberColorIdx=0;
+  document.getElementById('members-setup-list').innerHTML='';
+  addMemberRow('','member'); addMemberRow('','member');
+}
+
+function addMemberRow(name='',role='member'){
+  const color=memberColorIdx%PAL.length; memberColorIdx++;
+  const id='mr-'+Date.now()+Math.random();
+  const div=document.createElement('div');
+  div.className='member-setup-row'; div.id=id;
+  div.innerHTML=`
+    <div class="color-dot" style="background:${PAL[color]};border:2px solid transparent">${color+1}</div>
+    <input type="text" placeholder="Member name" value="${name}" data-color="${color}">
+    <select data-role="${role}" style="width:110px">
+      <option value="admin" ${role==='admin'?'selected':''}>Admin</option>
+      <option value="member" ${role==='member'?'selected':''}>Member</option>
+    </select>
+    <button class="btn btn-icon btn-outline btn-xs" onclick="document.getElementById('${id}').remove()"><i class="ti ti-x" style="font-size:12px"></i></button>`;
+  document.getElementById('members-setup-list').appendChild(div);
+}
+
+async function wizardNext(step){
+  if(step===1){
+    if(!document.getElementById('s-company').value.trim()){alert('Enter company name.');return;}
+    setStep(2); initSetup();
+  } else if(step===2){
+    const rows=document.querySelectorAll('#members-setup-list .member-setup-row');
+    wizardMembers=[];
+    rows.forEach((r,i)=>{
+      const name=r.querySelector('input').value.trim();
+      const color=parseInt(r.querySelector('input').dataset.color)||0;
+      const role=r.querySelector('select').value;
+      if(name) wizardMembers.push({name,color,role});
+    });
+    if(!wizardMembers.length){alert('Add at least one member.');return;}
+    setStep(3);
+  } else if(step===3){
+    const pm=document.getElementById('s-pw-mgr').value;
+    const pa=document.getElementById('s-pw-adm').value;
+    const pe=document.getElementById('s-pw-mem').value;
+    if(pm.length<4||pa.length<4||pe.length<4){alert('All passwords must be at least 4 characters.');return;}
+    showLoading('Creating workspace...');
+    try{
+      const ws=await sbPost('workspaces',{
+        company:document.getElementById('s-company').value.trim(),
+        subtitle:document.getElementById('s-subtitle').value.trim(),
+        pw_manager:pm, pw_admin:pa, pw_member:pe
+      });
+      const wsId=ws[0].id;
+      saveWsId(wsId);
+      currentWorkspace=ws[0];
+      for(const m of wizardMembers){
+        await sbPost('members',{workspace_id:wsId,name:m.name,color:m.color,role:m.role});
+      }
+      hideLoading(); setStep(4);
+    } catch(e){ hideLoading(); alert('Error creating workspace: '+e.message); }
+  }
+}
+function wizardBack(step){ setStep(step-1); }
+function setStep(n){
+  for(let i=1;i<=4;i++){
+    document.getElementById('step-'+i).classList.toggle('hidden',i!==n);
+    const ws=document.getElementById('ws-'+i);
+    ws.classList.remove('active','done');
+    if(i<n) ws.classList.add('done');
+    if(i===n) ws.classList.add('active');
+    const dot=ws.querySelector('.step-dot');
+    dot.innerHTML=i<n?'<i class="ti ti-check" style="font-size:11px"></i>':String(i);
+  }
+}
+async function goToLogin(){
+  allMembers=await sbGet(`members?workspace_id=eq.${currentWorkspace.id}&order=name`)||[];
+  showScreen('login-screen');
+}
+
+// ── LOGIN ────────────────────────────────────────────────────
+function selectRole(role){
+  selectedRole=role;
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('selected'));
+  document.getElementById('rb-'+role).classList.add('selected');
+}
+function goToPassword(){
+  if(!selectedRole){alert('Select a role first.');return;}
+  document.getElementById('login-step-role').classList.add('hidden');
+  document.getElementById('login-step-pw').classList.remove('hidden');
+  document.getElementById('login-pw-title').textContent=
+    selectedRole==='manager'?'Manager login':
+    selectedRole==='admin'?'Admin login':
+    selectedRole==='siteadmin'?'Site Admin login':'Member login';
+  document.getElementById('login-err').classList.add('hidden');
+  document.getElementById('login-pw').value='';
+  const nw=document.getElementById('login-name-wrap');
+  const sel=document.getElementById('login-member-name');
+  if(selectedRole==='member'||selectedRole==='admin'){
+    const filtered=allMembers.filter(m=>m.role===selectedRole);
+    sel.innerHTML='<option value="">-- Select your name --</option>'+filtered.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+    nw.querySelector('label').textContent='Your name';
+    nw.classList.remove('hidden');
+  } else if(selectedRole==='siteadmin'){
+    sel.innerHTML='<option value="">-- Select your site --</option>'+allSiteAdmins.map(s=>`<option value="${s.id}">${s.site_name}</option>`).join('');
+    nw.querySelector('label').textContent='Your site';
+    nw.classList.remove('hidden');
+  } else {
+    nw.classList.add('hidden');
+  }
+  setTimeout(()=>document.getElementById('login-pw').focus(),100);
+}
+function backToRole(){
+  document.getElementById('login-step-pw').classList.add('hidden');
+  document.getElementById('login-step-role').classList.remove('hidden');
+  selectedRole=null;
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('selected'));
+}
+async function doLogin(){
+  const pw=document.getElementById('login-pw').value;
+  const err=document.getElementById('login-err');
+  err.classList.add('hidden');
+  if(selectedRole==='manager'){
+    if(pw!==currentWorkspace.pw_manager){err.classList.remove('hidden');return;}
+    currentRole='manager'; currentMember=null; currentSiteAdmin=null;
+    await launchManager();
+  } else if(selectedRole==='admin'){
+    if(pw!==currentWorkspace.pw_admin){err.classList.remove('hidden');return;}
+    const mid=document.getElementById('login-member-name').value;
+    if(!mid){alert('Select your name.');return;}
+    currentRole='admin'; currentMember=allMembers.find(m=>m.id===mid); currentSiteAdmin=null;
+    await launchAdmin();
+  } else if(selectedRole==='siteadmin'){
+    const sid=document.getElementById('login-member-name').value;
+    if(!sid){alert('Select your site.');return;}
+    const sa=allSiteAdmins.find(s=>s.id===sid);
+    if(!sa||sa.password!==pw){err.classList.remove('hidden');return;}
+    currentRole='siteadmin'; currentSiteAdmin=sa; currentMember=null;
+    await launchSiteAdmin();
+  } else {
+    if(pw!==currentWorkspace.pw_member){err.classList.remove('hidden');return;}
+    const mid=document.getElementById('login-member-name').value;
+    if(!mid){alert('Select your name.');return;}
+    currentRole='member'; currentMember=allMembers.find(m=>m.id===mid); currentSiteAdmin=null;
+    await launchMember();
+  }
+}
+function logout(){
+  stopPolling();
+  currentRole=null; currentMember=null; currentSiteAdmin=null; selectedRole=null;
+  document.getElementById('login-step-pw').classList.add('hidden');
+  document.getElementById('login-step-role').classList.remove('hidden');
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('selected'));
+  showScreen('login-screen');
+}
+
+// ── DATA FETCH ────────────────────────────────────────────────
+async function fetchAll(role){
+  if(!currentWorkspace) return;
+  setSyncStatus(role,'syncing');
+  try{
+    // Always refresh workspace so changes from manager sync to all users
+    const wsRows = await sbGet(`workspaces?id=eq.${currentWorkspace.id}&select=*`);
+    if(wsRows&&wsRows.length) currentWorkspace = wsRows[0];
+    allMembers    = await sbGet(`members?workspace_id=eq.${currentWorkspace.id}&order=name`)||[];
+    allSiteAdmins = await sbGet(`site_admins?workspace_id=eq.${currentWorkspace.id}&order=site_name`)||[];
+    allTickets    = await sbGet(`tickets?workspace_id=eq.${currentWorkspace.id}&order=created_at.desc`)||[];
+    allNotes      = await sbGet(`notes?ticket_id=in.(${allTickets.map(t=>t.id).join(',')||'00000000-0000-0000-0000-000000000000'})`)||[];
+    // KPI data
+    const year = new Date().getFullYear();
+    const kpiSet = await sbGet(`kpi_settings?workspace_id=eq.${currentWorkspace.id}`);
+    kpiSettings = kpiSet&&kpiSet.length ? kpiSet[0] : {point_on_target:3,point_miss_target:-2,point_opening:10};
+    allKpiEntries = await sbGet(`kpi_entries?workspace_id=eq.${currentWorkspace.id}&year=in.(${year},${year-1})&order=created_at.desc`)||[];
+    setSyncStatus(role,'online');
+  } catch(e){ setSyncStatus(role,'offline'); }
+}
+
+function startPolling(role, renderFn, interval=8000){
+  stopPolling();
+  pollingTimer=setInterval(async()=>{
+    await fetchAll(role);
+    renderFn();
+  }, interval);
+}
+function stopPolling(){ if(pollingTimer){ clearInterval(pollingTimer); pollingTimer=null; } }
+
+// ── MANAGER ──────────────────────────────────────────────────
+async function launchManager(){
+  showLoading('Loading data...');
+  await fetchAll('manager');
+  hideLoading();
+  document.getElementById('mgr-co').textContent=currentWorkspace.company;
+  document.getElementById('set-company').value=currentWorkspace.company;
+  document.getElementById('set-subtitle').value=currentWorkspace.subtitle||'';
+  showScreen('manager-screen');
+  mgrNav('dashboard',document.querySelector('#manager-screen .nav-tab'));
+  startPolling('manager',()=>{
+    const active=document.querySelector('#manager-screen .page.active');
+    if(active.id==='mgr-dashboard') renderDashboard();
+    if(active.id==='mgr-board') renderBoard();
+    if(active.id==='mgr-tickets') renderTable();
+  });
+}
+function mgrNav(id,el){
+  document.querySelectorAll('#manager-screen .page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#manager-screen .nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('mgr-'+id).classList.add('active'); el.classList.add('active');
+  if(id==='dashboard') renderDashboard();
+  if(id==='board') renderBoard();
+  if(id==='tickets') renderTable();
+  if(id==='kpi'){ initKPIYearSel(); renderKPI(); }
+  if(id==='settings'){ renderSettingsMembers(); renderSettingsSiteAdmins(); }
+}
+
+// ── ADMIN ────────────────────────────────────────────────────
+async function launchAdmin(){
+  showLoading('Loading data...');
+  await fetchAll('admin');
+  hideLoading();
+  document.getElementById('adm-co').textContent=currentWorkspace.company;
+  populateMemberSelect('af-assign', allMembers);
+  showScreen('admin-screen');
+  admNav('new',document.querySelector('#admin-screen .nav-tab'));
+  startPolling('admin',()=>{
+    const active=document.querySelector('#admin-screen .page.active');
+    if(active.id==='adm-board') renderAdminBoard();
+    if(active.id==='adm-tickets') renderAdminTable();
+  });
+}
+function admNav(id,el){
+  document.querySelectorAll('#admin-screen .page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#admin-screen .nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('adm-'+id).classList.add('active'); el.classList.add('active');
+  if(id==='board') renderAdminBoard();
+  if(id==='tickets') renderAdminTable();
+}
+
+// ── MEMBER ───────────────────────────────────────────────────
+async function launchMember(){
+  showLoading('Loading your tickets...');
+  await fetchAll('member');
+  hideLoading();
+  document.getElementById('mem-co').textContent=currentWorkspace.company;
+  document.getElementById('mem-chip-name').textContent=currentMember.name;
+  showScreen('member-screen');
+  memNav('my',document.querySelector('#member-screen .nav-tab'));
+  startPolling('member',()=>{
+    const active=document.querySelector('#member-screen .page.active');
+    if(active.id==='mem-my') renderMyTickets();
+    if(active.id==='mem-board') renderMemberBoard();
+  });
+}
+function memNav(id,el){
+  document.querySelectorAll('#member-screen .page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#member-screen .nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('mem-'+id).classList.add('active'); el.classList.add('active');
+  if(id==='my') renderMyTickets();
+  if(id==='board') renderMemberBoard();
+  if(id==='kpi') renderMemberKPI();
+}
+
+// ── RENDER HELPERS ────────────────────────────────────────────
+function typeBadge(t){ return `<span class="badge ${TYPE_CLS[t]||'b-bi'}">${TYPE_SHORT[t]||t}</span>`; }
+function prioBadge(p){ const c={Urgent:'b-urgent',Normal:'b-normal',Low:'b-low'}; return `<span class="badge ${c[p]||'b-normal'}">${p}</span>`; }
+function stBadge(s){ return `<span class="badge ${STATUS_CLS[s]||'b-new'}">${s}</span>`; }
+function fmtDate(d){ return d?new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'—'; }
+function fmtDT(d){ return d?new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—'; }
+function isOverdue(t){
+  if(!t.deadline||t.status==='Done') return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return new Date(t.deadline+'T00:00:00') < today;
+}
+function dueDateEl(t, size='fs11'){
+  const over = isOverdue(t);
+  const urg  = t.priority==='Urgent';
+  const color = over ? 'color:var(--red);font-weight:500' : urg ? 'color:var(--red)' : 'color:var(--hint)';
+  const icon  = over ? 'ti-calendar-x' : 'ti-calendar';
+  const label = over ? `<span class="overdue-badge"><i class="ti ti-alert-triangle" style="font-size:9px"></i>Overdue</span>` : '';
+  return `<span class="flex gap4 ${size}" style="${color}"><i class="ti ${icon}" style="font-size:11px"></i>${fmtDate(t.deadline)}${label}</span>`;
+}
+function getMember(name){ return allMembers.find(m=>m.name===name)||null; }
+function avEl(m, sz=26){
+  if(!m) return `<span class="av av-none" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*.4)}px"><i class="ti ti-user-question"></i></span>`;
+  return `<span class="av av-${m.color||0}" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*.42)}px;background:${PAL[m.color||0]}">${m.name[0]}</span>`;
+}
+function notesFor(ticketId){ return allNotes.filter(n=>n.ticket_id===ticketId).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)); }
+function populateFilterSelect(selId, members){
+  const el=document.getElementById(selId);
+  if(!el) return;
+  const cur = el.value;
+  el.innerHTML='<option value="all">All members</option><option value="__unassigned">Unassigned</option>'+members.map(m=>`<option value="${m.name}">${m.name}</option>`).join('');
+  if(cur) el.value=cur;
+}
+function populateMemberSelect(selId, members){
+  const el=document.getElementById(selId);
+  if(!el) return;
+  el.innerHTML='<option value="">Unassigned</option>'+members.map(m=>`<option>${m.name}</option>`).join('');
+}
+
+// ── DASHBOARD ────────────────────────────────────────────────
+function renderDashboard(){
+  const T=allTickets;
+  const total=T.length, done=T.filter(t=>t.status==='Done').length;
+  const urgent=T.filter(t=>t.priority==='Urgent'&&t.status!=='Done').length;
+  const unassigned=T.filter(t=>!t.assignee&&t.status!=='Done').length;
+  const overdue=T.filter(t=>isOverdue(t)).length;
+  document.getElementById('mgr-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Total tickets</div><div class="stat-val">${total}</div><div class="stat-sub">All statuses</div></div>
+    <div class="stat"><div class="stat-label">Completed</div><div class="stat-val">${done}</div><div class="stat-sub">${total?Math.round(done/total*100):0}% rate</div></div>
+    <div class="stat"><div class="stat-label" style="color:var(--red)">Overdue</div><div class="stat-val" style="color:var(--red)">${overdue}</div><div class="stat-sub">Past due date</div></div>
+    <div class="stat"><div class="stat-label" style="color:#854F0B">Unassigned</div><div class="stat-val" style="color:#854F0B">${unassigned}</div><div class="stat-sub">Assign now</div></div>`;
+
+  const statusMap=[
+    {label:'New',cls:'b-new'},
+    {label:'In Progress Estimation',cls:'b-est'},
+    {label:'In Progress Tender',cls:'b-tender'},
+    {label:'Done',cls:'b-done'},
+    {label:'Hold',cls:'b-hold'},
+  ];
+  document.getElementById('mgr-status-grid').innerHTML=statusMap.map(s=>{
+    const count=T.filter(t=>t.status===s.label).length;
+    return `<div class="mini-stat ${s.cls}"><div class="mini-stat-label">${s.label}</div><div class="mini-stat-val">${count}</div></div>`;
+  }).join('');
+
+  const typeMap=[
+    {label:'Project Tender',cls:'b-pt'},
+    {label:'Ops Tender',cls:'b-ot'},
+    {label:'Site Instruction / Site Memo',cls:'b-si'},
+    {label:'Budgeting Internal',cls:'b-bi'},
+  ];
+  document.getElementById('mgr-type-grid').innerHTML=typeMap.map(s=>{
+    const count=T.filter(t=>t.type===s.label).length;
+    return `<div class="mini-stat ${s.cls}"><div class="mini-stat-label">${s.label}</div><div class="mini-stat-val">${count}</div></div>`;
+  }).join('');
+
+  document.getElementById('mgr-team').innerHTML=allMembers.filter(m=>m.role==='member'||!m.role).map(m=>{
+    const mine=T.filter(t=>t.assignee===m.name);
+    const load=mine.filter(t=>t.status!=='Done').length;
+    const doneM=mine.filter(t=>t.status==='Done').length;
+    const pct=mine.length?Math.round(load/mine.length*100):0;
+    return `<div class="member-card">
+      <div class="flex gap8 mb12">${avEl(m,38)}<div><div class="fs13 fw5">${m.name}</div><div class="fs12 c-hint">Estimator</div></div></div>
+      <div class="flex fs12 c-muted mb8" style="justify-content:space-between"><span>Active load</span><span>${load} ticket${load!==1?'s':''}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct,100)}%;height:100%;background:${PAL[m.color||0]}"></div></div>
+      <div style="height:.5px;background:var(--border);margin:.75rem 0"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div><div class="fs11 c-hint">Done</div><div class="fs15 fw5">${doneM}</div></div>
+        <div><div class="fs11 c-hint">Active</div><div class="fs15 fw5">${load}</div></div>
+      </div>
+    </div>`;
+  }).join('')||'<div class="c-hint fs13">No members yet.</div>';
+  const recent=T.slice(0,6);
+  document.getElementById('mgr-recent').innerHTML=recent.length
+    ?'<table class="tbl">'+recent.map(t=>`<tr>
+        <td class="c-hint" style="font-family:var(--mono);font-size:11px">${t.ticket_no||'—'}</td>
+        <td class="fw5">${t.name}</td>
+        <td>${typeBadge(t.type)}</td>
+        <td>${stBadge(t.status)}</td>
+        <td>${t.assignee?`<div class="flex gap8">${avEl(getMember(t.assignee),20)} ${t.assignee}</div>`:'<span style="color:var(--red);font-size:12px">Unassigned</span>'}</td>
+        <td style="text-align:right"><button class="btn btn-outline btn-xs" onclick="openModal('${t.id}')"><i class="ti ti-edit" style="font-size:12px"></i></button></td>
+      </tr>`).join('')+'</table>'
+    :'<div class="empty-state" style="padding:2rem"><i class="ti ti-inbox"></i><p>No tickets yet</p></div>';
+}
+
+// ── BOARD ─────────────────────────────────────────────────────
+function getFilteredTickets(memberSelId, statusSelId, typeSelId){
+  let items = allTickets;
+  const member = document.getElementById(memberSelId)?.value || 'all';
+  const status = document.getElementById(statusSelId)?.value || 'all';
+  const type   = document.getElementById(typeSelId)?.value   || 'all';
+  if(member === '__unassigned') items = items.filter(t => !t.assignee);
+  else if(member !== 'all') items = items.filter(t => t.assignee === member);
+  if(status !== 'all') items = items.filter(t => t.status === status);
+  if(type   !== 'all') items = items.filter(t => t.type === type);
+  return items;
+}
+
+function resetBoardFilter(prefix){
+  const map = {
+    mgr: ['filter-est','filter-status-board','filter-type-board'],
+    adm: ['adm-filter-est','adm-filter-status','adm-filter-type'],
+    mem: ['mem-filter-member','mem-filter-status','mem-filter-type'],
+  };
+  (map[prefix]||[]).forEach(id=>{ const el=document.getElementById(id); if(el) el.value='all'; });
+  if(prefix==='mgr') renderBoard();
+  if(prefix==='adm') renderAdminBoard();
+  if(prefix==='mem') renderMemberBoard();
+}
+
+function resetTableFilter(prefix){
+  const map = {
+    mgr: ['filter-tbl-member','filter-tbl-status','filter-tbl-type'],
+    adm: ['adm-filter-tbl-member','adm-filter-tbl-status','adm-filter-tbl-type'],
+  };
+  (map[prefix]||[]).forEach(id=>{ const el=document.getElementById(id); if(el) el.value='all'; });
+  if(prefix==='mgr') renderTable();
+  if(prefix==='adm') renderAdminTable();
+}
+
+function renderBoardEl(containerId, memberSelId, statusSelId, typeSelId, countId){
+  const filtered = getFilteredTickets(memberSelId, statusSelId, typeSelId);
+  const board = document.getElementById(containerId);
+  if(!board) return;
+  board.innerHTML = '';
+  const statusFilter = document.getElementById(statusSelId)?.value || 'all';
+  const colsToShow = statusFilter !== 'all' ? [statusFilter] : STATUS_COLS;
+  colsToShow.forEach(col => {
+    const items = filtered.filter(t => t.status === col);
+    board.innerHTML += `<div class="k-col">
+      <div class="k-col-hd"><span class="k-col-title">${col}</span><span class="k-count">${items.length}</span></div>
+      ${items.map(t => {
+        const over  = isOverdue(t);
+        const notes = notesFor(t.id);
+        const last  = notes[notes.length - 1];
+        return `<div class="k-card${notes.length?' has-note':''}${over?' overdue':''}" onclick="openModal('${t.id}')">
+          <div class="k-card-id">${t.ticket_no||'—'}</div>
+          <div class="k-card-name">${t.name}</div>
+          <div class="k-card-meta">${typeBadge(t.type)}${prioBadge(t.priority)}</div>
+          ${last?`<div class="fs11 c-muted" style="font-style:italic;margin-bottom:4px;line-height:1.4">"${last.content.substring(0,55)}${last.content.length>55?'…':''}"</div>`:''}
+          <div class="k-card-ft">
+            ${dueDateEl(t)}
+            <div class="flex gap4">
+              ${t.assignee?`<span class="fs11 c-hint">${t.assignee}</span>${avEl(getMember(t.assignee),20)}`:'<span style="color:var(--red);font-size:11px">unassigned</span>'}
+            </div>
+          </div>
+        </div>`;
+      }).join('')||'<div class="empty-state" style="padding:1rem"><i class="ti ti-square" style="font-size:18px"></i><p>Empty</p></div>'}
+    </div>`;
+  });
+  const countEl = document.getElementById(countId);
+  if(countEl) countEl.textContent = filtered.length !== allTickets.length ? `${filtered.length} of ${allTickets.length} tickets` : '';
+}
+
+function renderBoard(){
+  populateFilterSelect('filter-est', allMembers);
+  populateFilterSelect('filter-tbl-member', allMembers);
+  renderBoardEl('kanban','filter-est','filter-status-board','filter-type-board','mgr-board-count');
+}
+function renderAdminBoard(){
+  populateFilterSelect('adm-filter-est', allMembers);
+  populateFilterSelect('adm-filter-tbl-member', allMembers);
+  renderBoardEl('adm-kanban','adm-filter-est','adm-filter-status','adm-filter-type','adm-board-count');
+}
+function renderMemberBoard(){
+  populateFilterSelect('mem-filter-member', allMembers);
+  renderBoardEl('mem-kanban','mem-filter-member','mem-filter-status','mem-filter-type','mem-board-count');
+}
+
+// ── TABLE ────────────────────────────────────────────────────
+function renderTableEl(tableId, memberSelId, statusSelId, typeSelId, countId, canEdit=false){
+  const filtered = getFilteredTickets(memberSelId, statusSelId, typeSelId);
+  document.getElementById(tableId).innerHTML=`
+    <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Due</th><th>Notes</th>${canEdit?'<th></th>':''}</tr></thead>
+    <tbody>${filtered.map(t=>`<tr>
+      <td class="c-hint" style="font-family:var(--mono);font-size:11px">${t.ticket_no||'—'}</td>
+      <td class="fw5">${t.name}</td>
+      <td>${typeBadge(t.type)}</td>
+      <td>${prioBadge(t.priority)}</td>
+      <td>${stBadge(t.status)}</td>
+      <td>${t.assignee?`<div class="flex gap8">${avEl(getMember(t.assignee),20)} ${t.assignee}</div>`:'<span style="color:var(--red);font-size:12px">Unassigned</span>'}</td>
+      <td>${isOverdue(t)?`<span style="color:var(--red);font-weight:500;display:flex;align-items:center;gap:4px"><i class="ti ti-calendar-x" style="font-size:12px"></i>${fmtDate(t.deadline)}<span class="overdue-badge"><i class="ti ti-alert-triangle" style="font-size:9px"></i>Overdue</span></span>`:fmtDate(t.deadline)}</td>
+      <td><span class="badge" style="background:var(--gray-bg);color:var(--gray-text)">${notesFor(t.id).length}</span></td>
+      ${canEdit?`<td><button class="btn btn-outline btn-xs" onclick="openModal('${t.id}')"><i class="ti ti-edit" style="font-size:11px"></i>Edit</button></td>`:''}
+    </tr>`).join('')||`<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--hint)">No tickets</td></tr>`}</tbody>`;
+  const countEl = document.getElementById(countId);
+  if(countEl) countEl.textContent = filtered.length !== allTickets.length ? `${filtered.length} of ${allTickets.length} tickets` : '';
+}
+function renderTable(){
+  populateFilterSelect('filter-tbl-member', allMembers);
+  renderTableEl('tickets-tbl','filter-tbl-member','filter-tbl-status','filter-tbl-type','mgr-tbl-count',true);
+}
+function renderAdminTable(){
+  populateFilterSelect('adm-filter-tbl-member', allMembers);
+  renderTableEl('adm-tickets-tbl','adm-filter-tbl-member','adm-filter-tbl-status','adm-filter-tbl-type','adm-tbl-count',true);
+}
+
+// ── MEMBER VIEW ───────────────────────────────────────────────
+function renderMyTickets(){
+  const mine=allTickets.filter(t=>t.assignee===currentMember.name);
+  const active=mine.filter(t=>t.status!=='Done');
+  const urg=mine.filter(t=>t.priority==='Urgent'&&t.status!=='Done');
+  const overdue=mine.filter(t=>isOverdue(t));
+  document.getElementById('mem-page-title').textContent=`${currentMember.name}'s tickets`;
+  document.getElementById('mem-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Assigned to me</div><div class="stat-val">${mine.length}</div></div>
+    <div class="stat"><div class="stat-label">Active</div><div class="stat-val">${active.length}</div></div>
+    <div class="stat"><div class="stat-label" style="color:var(--red)">Overdue</div><div class="stat-val" style="color:var(--red)">${overdue.length}</div></div>`;
+
+  // Overdue banner
+  const banner = overdue.length
+    ? `<div class="overdue-banner mb16">
+        <i class="ti ti-clock-exclamation" style="font-size:22px;color:var(--red-text);flex-shrink:0"></i>
+        <div>
+          <div class="overdue-banner-text">⚠️ You have ${overdue.length} overdue ticket${overdue.length>1?'s':''}!</div>
+          <div class="fs12" style="color:var(--red-text);margin-top:2px;opacity:.8">${overdue.map(t=>`${t.ticket_no||'—'} · ${t.name}`).join(' &nbsp;|&nbsp; ')}</div>
+        </div>
+      </div>`
+    : '';
+
+  const urgHtml=urg.length
+    ?`<div class="flex gap8 mb8" style="color:var(--red)"><i class="ti ti-alert-triangle" style="font-size:14px"></i><span class="fs12 fw5">Urgent — action needed</span></div>${urg.map(t=>memCard(t)).join('')}<div class="fs12 fw5 c-muted mt16 mb8">Other tickets</div>`
+    :'';
+  const others=mine.filter(t=>!(t.priority==='Urgent'&&t.status!=='Done'));
+  document.getElementById('mem-urgent').innerHTML=banner+urgHtml;
+  document.getElementById('mem-list').innerHTML=others.map(t=>memCard(t)).join('')||(mine.length===0?'<div class="empty-state" style="padding:3rem"><i class="ti ti-inbox"></i><p>No tickets assigned to you yet</p></div>':'');
+}
+function memCard(t){
+  const notes=notesFor(t.id);
+  const last=notes[notes.length-1];
+  const urg=t.priority==='Urgent';
+  const over=isOverdue(t);
+  return `<div class="ticket-card${urg?' urg':''}${over?' overdue':''}" onclick="openModal('${t.id}')">
+    <div class="flex gap8" style="justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+      <div><div class="fs11 c-hint" style="font-family:var(--mono);margin-bottom:2px">${t.ticket_no||'—'}</div><div class="fs13 fw5" style="line-height:1.4">${t.name}</div></div>
+      ${stBadge(t.status)}
+    </div>
+    <div class="flex gap8 mb8">${typeBadge(t.type)}${prioBadge(t.priority)}</div>
+    ${t.description?`<div class="fs12 c-muted mb8" style="line-height:1.5">${t.description}</div>`:''}
+    ${last?`<div class="fs11 c-muted mb8" style="font-style:italic">"${last.content.substring(0,80)}${last.content.length>80?'…':''}"</div>`:''}
+    <div class="flex gap8 fs12 c-muted" style="justify-content:space-between">
+      ${dueDateEl(t,'fs12')}
+      <span>${notes.length} note${notes.length!==1?'s':''}</span>
+    </div>
+  </div>`;
+}
+
+// ── MODAL ─────────────────────────────────────────────────────
+function openModal(id){
+  const t=allTickets.find(x=>x.id===id);
+  if(!t) return;
+  const notes=notesFor(t.id);
+  const isManager=currentRole==='manager';
+  const isAdmin=currentRole==='admin';
+  const isMine=currentRole==='member'&&currentMember&&t.assignee===currentMember.name;
+  const canEditStatus=isManager||isAdmin||isMine;
+  const canAssign=isManager||isAdmin;
+  const canChangeDate=isManager||isAdmin;
+  const canDelete=isManager||isAdmin;
+
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+      <div><div class="modal-title">${t.name}</div><div class="modal-sub">${t.ticket_no||'—'} · ${t.source||'—'} · ${fmtDT(t.created_at)}</div></div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-row"><span class="modal-key">Type</span>${typeBadge(t.type)}</div>
+    <div class="modal-row"><span class="modal-key">Priority</span>${prioBadge(t.priority)}</div>
+    <div class="modal-row"><span class="modal-key">Status</span>${stBadge(t.status)}</div>
+    <div class="modal-row"><span class="modal-key">Requested by</span><span>${t.requestor||'—'}</span></div>
+    ${t.submitted_by?`<div class="modal-row"><span class="modal-key">Submitted by</span><span>${t.submitted_by}</span></div>`:''}
+    <div class="modal-row"><span class="modal-key">Required by</span><span>${isOverdue(t)?`<span style="color:var(--red);font-weight:500;display:flex;align-items:center;gap:5px"><i class="ti ti-calendar-x" style="font-size:13px"></i>${fmtDate(t.deadline)}<span class="overdue-badge"><i class="ti ti-alert-triangle" style="font-size:9px"></i>Overdue</span></span>`:fmtDate(t.deadline)}</span></div>
+    <div class="modal-row" style="align-items:flex-start"><span class="modal-key">Description</span><span style="text-align:right;max-width:260px;line-height:1.5;color:var(--muted)">${t.description||'—'}</span></div>
+    <div class="divider"></div>
+    ${canEditStatus?`
+    <div class="fs12 fw5 c-muted mb8">${isManager?'Assign & update':isAdmin?'Update ticket':'Update progress'}</div>
+    <div class="field-row mb12">
+      ${canAssign?`<div class="field"><label>Assign to</label><select id="m-assign"><option value="">Unassigned</option>${allMembers.map(m=>`<option ${t.assignee===m.name?'selected':''}>${m.name}</option>`).join('')}</select></div>`:''}
+      <div class="field"><label>Status</label><select id="m-status">${STATUS_COLS.map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    </div>
+    ${canChangeDate?`
+    <div class="field mb12">
+      <label>Required by date ${isOverdue(t)?'<span class="overdue-badge" style="vertical-align:middle"><i class="ti ti-alert-triangle" style="font-size:9px"></i>Overdue</span>':''}</label>
+      <input type="date" id="m-deadline" value="${t.deadline||''}" style="max-width:200px">
+      <div class="field-hint">Change to extend or move the due date.</div>
+    </div>`:''}
+    <div class="field mb12"><label>Add progress note</label><textarea id="m-note" placeholder="Describe progress, blockers, or next steps..." style="font-family:var(--sans)"></textarea></div>
+    <div class="flex gap8 mb16">
+      <button class="btn btn-primary" onclick="saveModal('${t.id}')"><i class="ti ti-device-floppy" style="font-size:14px"></i>Save changes</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      ${canDelete?`<button class="btn btn-danger" style="margin-left:auto" onclick="deleteTicket('${t.id}','${t.ticket_no||''}')"><i class="ti ti-trash" style="font-size:13px"></i>Delete</button>`:''}
+    </div>`:'<div class="fs13 c-muted mb16" style="text-align:center">This ticket is assigned to <strong>${t.assignee||\'nobody\'}</strong>. Only they can update it.</div>'}
+    ${notes.length?`
+    <div class="divider"></div>
+    <div class="fs12 fw5 c-muted mb8">Progress notes (${notes.length})</div>
+    ${[...notes].reverse().map(n=>`<div class="note-item">
+      <div class="note-item-text">${n.content}</div>
+      <div class="note-item-meta">${n.author} · ${fmtDT(n.created_at)} · Status: ${n.status_at_time}</div>
+    </div>`).join('')}`:''}`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+
+async function saveModal(id){
+  const t=allTickets.find(x=>x.id===id);
+  if(!t) return;
+  const assignEl=document.getElementById('m-assign');
+  const deadlineEl=document.getElementById('m-deadline');
+  const newAssignee=assignEl?assignEl.value||null:t.assignee;
+  const newStatus=document.getElementById('m-status').value;
+  const newDeadline=deadlineEl?deadlineEl.value||null:t.deadline;
+  const noteText=document.getElementById('m-note').value.trim();
+  const updates={assignee:newAssignee,status:newStatus,updated_at:new Date().toISOString()};
+  if(deadlineEl) updates.deadline=newDeadline;
+  showLoading('Saving...');
+  try{
+    await sbPatch(`tickets?id=eq.${id}`,updates);
+    // Auto KPI — trigger when ticket becomes Done and has assignee
+    if(newStatus==='Done' && t.status!=='Done' && (updates.assignee||t.assignee)){
+      await autoKpiEntry(id, updates.assignee||t.assignee, t);
+    }
+    if(noteText){
+      await sbPost('notes',{ticket_id:id,author:currentMember?currentMember.name:'Manager',content:noteText,status_at_time:newStatus});
+    }
+    await fetchAll(currentRole);
+    hideLoading(); closeModal(); toast('Saved');
+    if(currentRole==='manager'){const a=document.querySelector('#manager-screen .page.active');if(a.id==='mgr-dashboard')renderDashboard();if(a.id==='mgr-board')renderBoard();if(a.id==='mgr-tickets')renderTable();}
+    if(currentRole==='admin'){const a=document.querySelector('#admin-screen .page.active');if(a.id==='adm-board')renderAdminBoard();if(a.id==='adm-tickets')renderAdminTable();}
+    if(currentRole==='member') renderMyTickets();
+  } catch(e){ hideLoading(); toast('Save failed: '+e.message,true); }
+}
+
+function closeModal(e){
+  if(!e||e.target===document.getElementById('modal-bg'))
+    document.getElementById('modal-bg').classList.remove('show');
+}
+
+async function deleteTicket(id, ticketNo){
+  document.getElementById('modal-box').innerHTML=`
+    <div style="text-align:center;padding:.5rem 0 1rem">
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--red-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:20px">
+        <i class="ti ti-trash" style="color:var(--red-text)"></i>
+      </div>
+      <div class="modal-title mb8">Delete ticket ${ticketNo||''}?</div>
+      <p class="fs13 c-muted" style="line-height:1.6;margin-bottom:1.5rem">This will permanently delete the ticket and all its progress notes. This cannot be undone.</p>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmDeleteTicket('${id}')"><i class="ti ti-trash" style="font-size:13px"></i>Delete permanently</button>
+      </div>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+
+async function confirmDeleteTicket(id){
+  showLoading('Deleting ticket...');
+  try{
+    await sbDelete(`notes?ticket_id=eq.${id}`);
+    await sbDelete(`tickets?id=eq.${id}`);
+    await fetchAll(currentRole);
+    hideLoading(); closeModal(); toast('Ticket deleted');
+    if(currentRole==='manager'){const a=document.querySelector('#manager-screen .page.active');if(a.id==='mgr-dashboard')renderDashboard();if(a.id==='mgr-board')renderBoard();if(a.id==='mgr-tickets')renderTable();}
+    if(currentRole==='admin'){const a=document.querySelector('#admin-screen .page.active');if(a.id==='adm-board')renderAdminBoard();if(a.id==='adm-tickets')renderAdminTable();}
+    if(currentRole==='siteadmin'){renderSiteAdminTickets();}
+  } catch(e){ hideLoading(); toast('Delete failed: '+e.message,true); }
+}
+
+// ── SUBMIT TICKET ────────────────────────────────────────────
+async function submitTicket(src){
+  const prefix=src==='admin'?'af':'f';
+  const name=document.getElementById(prefix+'-name').value.trim();
+  const type=document.getElementById(prefix+'-type').value;
+  const pri=document.getElementById(prefix+'-pri').value;
+  if(!name||!type||!pri){alert('Fill in work name, type, and priority.');return;}
+  showLoading('Creating ticket...');
+  try{
+    const existing=await sbGet(`tickets?workspace_id=eq.${currentWorkspace.id}&select=ticket_no&order=created_at.asc`)||[];
+    const num=existing.length+1;
+    const ticketNo='EST-'+String(num).padStart(3,'0');
+    await sbPost('tickets',{
+      workspace_id:currentWorkspace.id,
+      ticket_no:ticketNo,
+      name,type,priority:pri,
+      deadline:document.getElementById(prefix+'-date').value||null,
+      requestor:document.getElementById(prefix+'-req').value||null,
+      assignee:document.getElementById(prefix+'-assign').value||null,
+      status:'New',
+      source:document.getElementById(prefix+'-src').value||null,
+      description:document.getElementById(prefix+'-desc').value||null,
+      submitted_by: currentMember ? currentMember.name : null,
+    });
+    await fetchAll(currentRole);
+    hideLoading();
+    if(src==='admin') clearAdminForm();
+    toast(`Ticket ${ticketNo} created`);
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+function clearAdminForm(){
+  ['af-name','af-req','af-date','af-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['af-type','af-pri','af-assign','af-src'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+
+// ── SITE ADMIN ────────────────────────────────────────────────
+async function launchSiteAdmin(){
+  showLoading('Loading your tickets...');
+  await fetchAll('siteadmin');
+  hideLoading();
+  document.getElementById('sa-co').textContent=currentWorkspace.company;
+  document.getElementById('sa-chip-name').textContent=currentSiteAdmin.site_name;
+  document.getElementById('sa-new-sub').textContent=`Submit a ticket from ${currentSiteAdmin.site_name}.`;
+  document.getElementById('sa-list-title').textContent=`${currentSiteAdmin.site_name} — My tickets`;
+  showScreen('siteadmin-screen');
+  saNav('new',document.querySelector('#siteadmin-screen .nav-tab'));
+  startPolling('siteadmin',()=>{
+    const active=document.querySelector('#siteadmin-screen .page.active');
+    if(active&&active.id==='sa-mytickets') renderSiteAdminTickets();
+  });
+}
+function saNav(id,el){
+  document.querySelectorAll('#siteadmin-screen .page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#siteadmin-screen .nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('sa-'+id).classList.add('active'); el.classList.add('active');
+  if(id==='mytickets') renderSiteAdminTickets();
+}
+async function submitSiteTicket(){
+  const name=document.getElementById('sf-name').value.trim();
+  const type=document.getElementById('sf-type').value;
+  const pri=document.getElementById('sf-pri').value;
+  if(!name||!type||!pri){alert('Fill in work name, type, and priority.');return;}
+  showLoading('Creating ticket...');
+  try{
+    const existing=await sbGet(`tickets?workspace_id=eq.${currentWorkspace.id}&select=ticket_no&order=created_at.asc`)||[];
+    const ticketNo='EST-'+String(existing.length+1).padStart(3,'0');
+    await sbPost('tickets',{
+      workspace_id:currentWorkspace.id, ticket_no:ticketNo, name, type, priority:pri,
+      deadline:document.getElementById('sf-date').value||null,
+      requestor:document.getElementById('sf-req').value||null,
+      assignee:null, status:'New',
+      source:document.getElementById('sf-src').value||null,
+      description:document.getElementById('sf-desc').value||null,
+      submitted_by:currentSiteAdmin.site_name,
+      site_name:currentSiteAdmin.site_name,
+    });
+    await fetchAll('siteadmin');
+    hideLoading(); clearSiteForm(); toast(`Ticket ${ticketNo} created`);
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+function clearSiteForm(){
+  ['sf-name','sf-req','sf-date','sf-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['sf-type','sf-pri','sf-src'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+function renderSiteAdminTickets(){
+  const mine=allTickets.filter(t=>t.site_name===currentSiteAdmin.site_name||t.submitted_by===currentSiteAdmin.site_name);
+  const active=mine.filter(t=>t.status!=='Done');
+  const overdue=mine.filter(t=>isOverdue(t));
+  document.getElementById('sa-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Total submitted</div><div class="stat-val">${mine.length}</div></div>
+    <div class="stat"><div class="stat-label">Active</div><div class="stat-val">${active.length}</div></div>
+    <div class="stat"><div class="stat-label" style="color:var(--red)">Overdue</div><div class="stat-val" style="color:var(--red)">${overdue.length}</div></div>`;
+  document.getElementById('sa-ticket-list').innerHTML=mine.length
+    ?`<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Due date</th></tr></thead>
+        <tbody>${mine.map(t=>`<tr>
+          <td class="c-hint" style="font-family:var(--mono);font-size:11px">${t.ticket_no||'—'}</td>
+          <td class="fw5">${t.name}</td>
+          <td>${typeBadge(t.type)}</td>
+          <td>${prioBadge(t.priority)}</td>
+          <td>${stBadge(t.status)}</td>
+          <td>${t.assignee?`<div class="flex gap8">${avEl(getMember(t.assignee),20)} ${t.assignee}</div>`:'<span style="color:#854F0B;font-size:12px">Waiting</span>'}</td>
+          <td>${isOverdue(t)?`<span style="color:var(--red);font-weight:500;display:flex;align-items:center;gap:4px"><i class="ti ti-calendar-x" style="font-size:12px"></i>${fmtDate(t.deadline)}<span class="overdue-badge"><i class="ti ti-alert-triangle" style="font-size:9px"></i>Overdue</span></span>`:fmtDate(t.deadline)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`
+    :'<div class="empty-state" style="padding:3rem"><i class="ti ti-inbox"></i><p>No tickets submitted yet</p></div>';
+}
+function openSiteModal(id){
+  const t=allTickets.find(x=>x.id===id); if(!t) return;
+  const notes=notesFor(t.id);
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+      <div><div class="modal-title">${t.name}</div><div class="modal-sub">${t.ticket_no||'—'} · ${fmtDT(t.created_at)}</div></div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-row"><span class="modal-key">Type</span>${typeBadge(t.type)}</div>
+    <div class="modal-row"><span class="modal-key">Priority</span>${prioBadge(t.priority)}</div>
+    <div class="modal-row"><span class="modal-key">Status</span>${stBadge(t.status)}</div>
+    <div class="modal-row"><span class="modal-key">Assignee</span>${t.assignee?`<div class="flex gap8">${avEl(getMember(t.assignee),20)} ${t.assignee}</div>`:'<span style="color:#854F0B">Waiting for assignment</span>'}</div>
+    <div class="modal-row"><span class="modal-key">Requested by</span><span>${t.requestor||'—'}</span></div>
+    <div class="modal-row"><span class="modal-key">Required by</span><span>${isOverdue(t)?`<span style="color:var(--red);font-weight:500;display:flex;align-items:center;gap:5px"><i class="ti ti-calendar-x" style="font-size:13px"></i>${fmtDate(t.deadline)}<span class="overdue-badge"><i class="ti ti-alert-triangle" style="font-size:9px"></i>Overdue</span></span>`:fmtDate(t.deadline)}</span></div>
+    <div class="modal-row" style="align-items:flex-start"><span class="modal-key">Description</span><span style="text-align:right;max-width:260px;line-height:1.5;color:var(--muted)">${t.description||'—'}</span></div>
+    <div class="divider"></div>
+    <div class="fs12 fw5 c-muted mb8">Update request</div>
+    <div class="field mb12">
+      <label>Required by date ${isOverdue(t)?'<span class="overdue-badge" style="vertical-align:middle"><i class="ti ti-alert-triangle" style="font-size:9px"></i>Overdue</span>':''}</label>
+      <input type="date" id="sa-deadline" value="${t.deadline||''}" style="max-width:200px">
+      <div class="field-hint">You can extend or move the due date.</div>
+    </div>
+    <div class="flex gap8 mb16">
+      <button class="btn btn-primary" onclick="saveSiteDeadline('${t.id}')"><i class="ti ti-device-floppy" style="font-size:14px"></i>Save</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" style="margin-left:auto" onclick="deleteTicket('${t.id}','${t.ticket_no||''}')"><i class="ti ti-trash" style="font-size:13px"></i>Delete</button>
+    </div>
+    ${notes.length?`
+    <div class="divider"></div>
+    <div class="fs12 fw5 c-muted mb8">Progress notes (${notes.length})</div>
+    ${[...notes].reverse().map(n=>`<div class="note-item"><div class="note-item-text">${n.content}</div><div class="note-item-meta">${n.author} · ${fmtDT(n.created_at)} · Status: ${n.status_at_time}</div></div>`).join('')}`:''}`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+async function saveSiteDeadline(id){
+  const d=document.getElementById('sa-deadline').value||null;
+  showLoading('Saving...');
+  try{
+    await sbPatch(`tickets?id=eq.${id}`,{deadline:d,updated_at:new Date().toISOString()});
+    await fetchAll('siteadmin');
+    hideLoading(); closeModal(); toast('Saved'); renderSiteAdminTickets();
+  } catch(e){ hideLoading(); toast('Save failed: '+e.message,true); }
+}
+
+// ── SETTINGS SITE ADMINS ──────────────────────────────────────
+function renderSettingsSiteAdmins(){
+  const baseUrl=window.location.href.split('?')[0];
+  document.getElementById('settings-siteadmin-list').innerHTML=allSiteAdmins.length
+    ?allSiteAdmins.map(s=>`
+      <div class="member-row">
+        <div class="av" style="width:32px;height:32px;font-size:13px;background:${PAL[s.color||3]};color:#fff;flex-shrink:0">${s.site_name[0]}</div>
+        <div style="flex:1;min-width:0">
+          <div class="fs13 fw5">${s.site_name}</div>
+          <div class="fs11 c-hint" style="font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">Password: ${s.password}</div>
+        </div>
+        <button class="btn btn-outline btn-xs" onclick="openEditSiteAdmin('${s.id}')"><i class="ti ti-pencil" style="font-size:11px"></i>Edit</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteSiteAdmin('${s.id}')"><i class="ti ti-trash" style="font-size:11px"></i></button>
+      </div>`).join('')
+    :'<div class="empty-state" style="padding:2rem"><i class="ti ti-map-pin"></i><p>No site admins yet.</p></div>';
+}
+function openAddSiteAdmin(){
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;margin-bottom:1.25rem">
+      <div class="modal-title">Add Site Admin</div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="field"><label>Site name</label><input type="text" id="ns-name" placeholder="e.g. Site Bekasi, Proyek A"></div>
+    <div class="field"><label>Password (unique per site)</label>
+      <div class="pw-wrap"><input type="password" id="ns-pw" placeholder="Min. 4 characters"><button class="pw-toggle" onclick="togglePw('ns-pw',this)" tabindex="-1"><i class="ti ti-eye"></i></button></div>
+      <div class="field-hint">This site admin enters this password to login.</div>
+    </div>
+    <div class="field"><label>Avatar color</label>
+      <div class="flex gap8 mt4" style="flex-wrap:wrap">
+        ${PAL.map((c,i)=>`<div class="color-dot" style="background:${c};border:${i===3?'2px solid var(--text)':'2px solid transparent'}" onclick="selSAColor(${i},this)">${i===3?'✓':''}</div>`).join('')}
+      </div>
+      <input type="hidden" id="ns-color" value="3">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveSiteAdmin()"><i class="ti ti-plus" style="font-size:14px"></i>Add site</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+function selSAColor(idx,el){
+  document.querySelectorAll('#modal-box .color-dot').forEach((d,i)=>{d.textContent=i===idx?'✓':'';d.style.border=i===idx?'2px solid var(--text)':'2px solid transparent';});
+  document.getElementById('ns-color').value=idx;
+}
+async function saveSiteAdmin(){
+  const name=document.getElementById('ns-name').value.trim();
+  const pw=document.getElementById('ns-pw').value;
+  const color=parseInt(document.getElementById('ns-color').value)||3;
+  if(!name){alert('Site name required.');return;}
+  if(pw.length<4){alert('Password min. 4 characters.');return;}
+  // Check password uniqueness
+  if(allSiteAdmins.some(s=>s.password===pw)){alert('Password already used by another site. Use a unique password.');return;}
+  showLoading('Adding...');
+  try{
+    await sbPost('site_admins',{workspace_id:currentWorkspace.id,site_name:name,password:pw,color});
+    allSiteAdmins=await sbGet(`site_admins?workspace_id=eq.${currentWorkspace.id}&order=site_name`)||[];
+    closeModal(); hideLoading(); renderSettingsSiteAdmins(); toast(`${name} added`);
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+function openEditSiteAdmin(id){
+  const s=allSiteAdmins.find(x=>x.id===id); if(!s) return;
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;margin-bottom:1.25rem">
+      <div class="modal-title">Edit Site Admin</div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="field"><label>Site name</label><input type="text" id="es-name" value="${s.site_name}"></div>
+    <div class="field"><label>New password (blank to keep)</label>
+      <div class="pw-wrap"><input type="password" id="es-pw" placeholder="Leave blank to keep current"><button class="pw-toggle" onclick="togglePw('es-pw',this)" tabindex="-1"><i class="ti ti-eye"></i></button></div>
+    </div>
+    <div class="field"><label>Avatar color</label>
+      <div class="flex gap8 mt4" style="flex-wrap:wrap">
+        ${PAL.map((c,i)=>`<div class="color-dot" style="background:${c};border:${i===(s.color||3)?'2px solid var(--text)':'2px solid transparent'}" onclick="selSAColorE(${i},this)">${i===(s.color||3)?'✓':''}</div>`).join('')}
+      </div>
+      <input type="hidden" id="es-color" value="${s.color||3}">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="updateSiteAdmin('${id}')"><i class="ti ti-device-floppy" style="font-size:14px"></i>Save</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+function selSAColorE(idx,el){
+  document.querySelectorAll('#modal-box .color-dot').forEach((d,i)=>{d.textContent=i===idx?'✓':'';d.style.border=i===idx?'2px solid var(--text)':'2px solid transparent';});
+  document.getElementById('es-color').value=idx;
+}
+async function updateSiteAdmin(id){
+  const name=document.getElementById('es-name').value.trim();
+  const pw=document.getElementById('es-pw').value;
+  const color=parseInt(document.getElementById('es-color').value)||3;
+  if(!name){alert('Site name required.');return;}
+  if(pw&&pw.length<4){alert('Password min. 4 characters.');return;}
+  if(pw&&allSiteAdmins.some(s=>s.id!==id&&s.password===pw)){alert('Password already used by another site.');return;}
+  const updates={site_name:name,color};
+  if(pw) updates.password=pw;
+  const s=allSiteAdmins.find(x=>x.id===id); const oldName=s?.site_name;
+  showLoading('Updating...');
+  try{
+    await sbPatch(`site_admins?id=eq.${id}`,updates);
+    if(oldName&&oldName!==name) await sbPatch(`tickets?workspace_id=eq.${currentWorkspace.id}&site_name=eq.${oldName}`,{site_name:name,submitted_by:name});
+    allSiteAdmins=await sbGet(`site_admins?workspace_id=eq.${currentWorkspace.id}&order=site_name`)||[];
+    closeModal(); hideLoading(); renderSettingsSiteAdmins(); toast('Updated');
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+async function deleteSiteAdmin(id){
+  if(!confirm('Remove this site admin? Their tickets stay but become unowned.')) return;
+  showLoading('Removing...');
+  try{
+    await sbDelete(`site_admins?id=eq.${id}`);
+    allSiteAdmins=await sbGet(`site_admins?workspace_id=eq.${currentWorkspace.id}&order=site_name`)||[];
+    hideLoading(); renderSettingsSiteAdmins(); toast('Removed');
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+
+// ── SETTINGS ────────────────────────────────────────────────
+function renderSettingsMembers(){
+  document.getElementById('set-company').value=currentWorkspace.company;
+  document.getElementById('set-subtitle').value=currentWorkspace.subtitle||'';
+  const baseUrl=window.location.href.split('?')[0];
+  document.getElementById('settings-member-list').innerHTML=allMembers.map(m=>`
+    <div class="member-row">
+      ${avEl(m,32)}
+      <div style="flex:1;min-width:0">
+        <div class="fs13 fw5">${m.name} <span class="badge ${m.role==='admin'?'b-si':'b-new'}" style="margin-left:4px">${m.role||'member'}</span></div>
+        <div class="fs11 c-hint" style="font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">${baseUrl}?member=${encodeURIComponent(m.name)}&ws=${currentWorkspace.id}</div>
+      </div>
+      <button class="btn btn-outline btn-xs" onclick="copyMemberLink('${m.name}')"><i class="ti ti-copy" style="font-size:11px"></i></button>
+      <button class="btn btn-outline btn-xs" onclick="openEditMember('${m.id}')"><i class="ti ti-pencil" style="font-size:11px"></i></button>
+      <button class="btn btn-danger btn-xs" onclick="deleteMember('${m.id}')"><i class="ti ti-trash" style="font-size:11px"></i></button>
+    </div>`).join('')||'<div class="empty-state" style="padding:2rem"><i class="ti ti-users"></i><p>No members</p></div>';
+}
+
+async function saveWorkspace(){
+  const co=document.getElementById('set-company').value.trim();
+  const su=document.getElementById('set-subtitle').value.trim();
+  if(!co){alert('Company name required.');return;}
+  showLoading('Saving...');
+  try{
+    await sbPatch(`workspaces?id=eq.${currentWorkspace.id}`,{company:co,subtitle:su});
+    currentWorkspace.company=co; currentWorkspace.subtitle=su;
+    document.getElementById('mgr-co').textContent=co;
+    hideLoading(); toast('Workspace saved');
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+
+async function savePasswords(){
+  const pm=document.getElementById('set-pw-mgr').value;
+  const pa=document.getElementById('set-pw-adm').value;
+  const pe=document.getElementById('set-pw-mem').value;
+  if((pm&&pm.length<4)||(pa&&pa.length<4)||(pe&&pe.length<4)){alert('Passwords must be at least 4 characters.');return;}
+  const updates={};
+  if(pm) updates.pw_manager=pm;
+  if(pa) updates.pw_admin=pa;
+  if(pe) updates.pw_member=pe;
+  if(!Object.keys(updates).length){toast('No changes');return;}
+  showLoading('Updating...');
+  try{
+    await sbPatch(`workspaces?id=eq.${currentWorkspace.id}`,updates);
+    Object.assign(currentWorkspace,updates);
+    ['set-pw-mgr','set-pw-adm','set-pw-mem'].forEach(id=>document.getElementById(id).value='');
+    hideLoading(); toast('Passwords updated');
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+
+function openAddMember(){
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;margin-bottom:1.25rem">
+      <div class="modal-title">Add team member</div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="field"><label>Name</label><input type="text" id="nm-name" placeholder="e.g. Andi"></div>
+    <div class="field"><label>Role</label>
+      <select id="nm-role"><option value="member">Member (updates progress)</option><option value="admin">Admin (inputs tickets)</option></select>
+    </div>
+    <div class="field"><label>Avatar color</label>
+      <div class="flex gap8 mt4" style="flex-wrap:wrap">
+        ${PAL.map((c,i)=>`<div class="color-dot" style="background:${c};border:${i===0?'2px solid var(--text)':'2px solid transparent'}" onclick="selColor(${i},this)">${i===0?'✓':''}</div>`).join('')}
+      </div>
+      <input type="hidden" id="nm-color" value="0">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveMember()"><i class="ti ti-plus" style="font-size:14px"></i>Add</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+function selColor(idx,el){
+  document.querySelectorAll('#modal-box .color-dot').forEach((d,i)=>{d.textContent=i===idx?'✓':'';d.style.border=i===idx?'2px solid var(--text)':'2px solid transparent';});
+  document.getElementById('nm-color').value=idx;
+}
+async function saveMember(){
+  const name=document.getElementById('nm-name').value.trim();
+  const color=parseInt(document.getElementById('nm-color').value)||0;
+  const role=document.getElementById('nm-role').value;
+  if(!name){alert('Name required.');return;}
+  showLoading('Adding...');
+  try{
+    await sbPost('members',{workspace_id:currentWorkspace.id,name,color,role});
+    allMembers=await sbGet(`members?workspace_id=eq.${currentWorkspace.id}&order=name`)||[];
+    populateFilterSelect('filter-est',allMembers);
+    closeModal(); hideLoading(); renderSettingsMembers(); toast(`${name} added`);
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+function openEditMember(id){
+  const m=allMembers.find(x=>x.id===id); if(!m) return;
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;margin-bottom:1.25rem">
+      <div class="modal-title">Edit member</div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="field"><label>Name</label><input type="text" id="em-name" value="${m.name}"></div>
+    <div class="field"><label>Role</label>
+      <select id="em-role"><option value="member" ${m.role==='member'?'selected':''}>Member</option><option value="admin" ${m.role==='admin'?'selected':''}>Admin</option></select>
+    </div>
+    <div class="field"><label>Avatar color</label>
+      <div class="flex gap8 mt4" style="flex-wrap:wrap">
+        ${PAL.map((c,i)=>`<div class="color-dot" style="background:${c};border:${i===m.color?'2px solid var(--text)':'2px solid transparent'}" onclick="selColorEdit(${i},this)">${i===m.color?'✓':''}</div>`).join('')}
+      </div>
+      <input type="hidden" id="em-color" value="${m.color||0}">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="updateMember('${id}')"><i class="ti ti-device-floppy" style="font-size:14px"></i>Save</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+function selColorEdit(idx,el){
+  document.querySelectorAll('#modal-box .color-dot').forEach((d,i)=>{d.textContent=i===idx?'✓':'';d.style.border=i===idx?'2px solid var(--text)':'2px solid transparent';});
+  document.getElementById('em-color').value=idx;
+}
+async function updateMember(id){
+  const name=document.getElementById('em-name').value.trim();
+  const color=parseInt(document.getElementById('em-color').value)||0;
+  const role=document.getElementById('em-role').value;
+  if(!name){alert('Name required.');return;}
+  const m=allMembers.find(x=>x.id===id); const oldName=m.name;
+  showLoading('Updating...');
+  try{
+    await sbPatch(`members?id=eq.${id}`,{name,color,role});
+    if(oldName!==name) await sbPatch(`tickets?workspace_id=eq.${currentWorkspace.id}&assignee=eq.${oldName}`,{assignee:name});
+    allMembers=await sbGet(`members?workspace_id=eq.${currentWorkspace.id}&order=name`)||[];
+    populateFilterSelect('filter-est',allMembers);
+    closeModal(); hideLoading(); renderSettingsMembers(); toast('Member updated');
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+async function deleteMember(id){
+  if(!confirm('Remove this member? Their tickets become unassigned.')) return;
+  const m=allMembers.find(x=>x.id===id);
+  showLoading('Removing...');
+  try{
+    if(m) await sbPatch(`tickets?workspace_id=eq.${currentWorkspace.id}&assignee=eq.${m.name}`,{assignee:null});
+    await sbDelete(`members?id=eq.${id}`);
+    allMembers=await sbGet(`members?workspace_id=eq.${currentWorkspace.id}&order=name`)||[];
+    hideLoading(); renderSettingsMembers(); toast('Member removed');
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+function copyMemberLink(name){
+  const url=`${window.location.href.split('?')[0]}?member=${encodeURIComponent(name)}&ws=${currentWorkspace.id}`;
+  navigator.clipboard.writeText(url).then(()=>toast('Link copied!')).catch(()=>toast('Copy failed'));
+}
+
+async function startNewWorkspace(){
+  document.getElementById('modal-box').innerHTML=`
+    <div style="text-align:center;padding:.5rem 0 1rem">
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:20px"><i class="ti ti-refresh" style="color:var(--accent-text)"></i></div>
+      <div class="modal-title mb8">Setup new workspace?</div>
+      <p class="fs13 c-muted" style="line-height:1.6;margin-bottom:1.5rem">A new workspace will be created in Supabase. Your current workspace data stays intact — it's not deleted.</p>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-accent" onclick="doNewWorkspace()"><i class="ti ti-refresh" style="font-size:13px"></i>Create new workspace</button>
+      </div>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+async function doNewWorkspace(){
+  clearWsId(); closeModal(); stopPolling();
+  currentWorkspace=null; currentRole=null; currentMember=null;
+  allMembers=[]; allTickets=[]; allNotes=[];
+  showScreen('setup-screen'); setStep(1);
+  document.getElementById('s-company').value='';
+  document.getElementById('s-subtitle').value='';
+}
+
+// ── KPI HELPERS ───────────────────────────────────────────────
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function kpiEntriesFor(memberName, month, year){
+  return allKpiEntries.filter(e=>e.member_name===memberName&&e.month===month&&e.year===year);
+}
+function kpiTotalFor(memberName, month, year){
+  return kpiEntriesFor(memberName,month,year).reduce((s,e)=>s+e.points,0);
+}
+function kpiBreakdown(memberName, month, year){
+  const entries=kpiEntriesFor(memberName,month,year);
+  return {
+    opening: entries.filter(e=>e.type==='opening').reduce((s,e)=>s+e.points,0),
+    auto: entries.filter(e=>e.type==='auto').reduce((s,e)=>s+e.points,0),
+    manual: entries.filter(e=>e.type==='manual').reduce((s,e)=>s+e.points,0),
+  };
+}
+
+async function autoKpiEntry(ticketId, assigneeName, ticket){
+  if(!kpiSettings||!assigneeName) return;
+  // Check if this ticket already has a KPI entry
+  const existing=allKpiEntries.find(e=>e.ticket_id===ticketId&&e.type==='auto');
+  if(existing) return; // already awarded
+  const now=new Date();
+  const month=now.getMonth()+1;
+  const year=now.getFullYear();
+  let points=kpiSettings.point_on_target;
+  let desc='On target';
+  if(ticket.deadline){
+    const dl=new Date(ticket.deadline+'T23:59:59');
+    if(now>dl){ points=kpiSettings.point_miss_target; desc='Missed deadline'; }
+  }
+  try{
+    await sbPost('kpi_entries',{
+      workspace_id:currentWorkspace.id,
+      member_name:assigneeName,
+      month, year, points,
+      type:'auto',
+      description:`${desc} — ${ticket.ticket_no||''} ${ticket.name}`,
+      ticket_id:ticketId,
+      ticket_no:ticket.ticket_no||null,
+      created_by:'System',
+    });
+    allKpiEntries=await sbGet(`kpi_entries?workspace_id=eq.${currentWorkspace.id}&year=in.(${year},${year-1})&order=created_at.desc`)||[];
+  } catch(e){ console.error('KPI auto entry failed',e); }
+}
+
+// ── KPI MANAGER RENDER ────────────────────────────────────────
+function initKPIYearSel(){
+  const sel=document.getElementById('kpi-year-sel');
+  const y=new Date().getFullYear();
+  sel.innerHTML=[y,y-1].map(yr=>`<option value="${yr}">${yr}</option>`).join('');
+}
+
+function renderKPI(){
+  const year=parseInt(document.getElementById('kpi-year-sel')?.value||new Date().getFullYear());
+  const curMonth=new Date().getMonth()+1;
+  const members=allMembers.filter(m=>m.role==='member'||!m.role);
+
+  // Month selector grid
+  document.getElementById('kpi-month-grid').innerHTML=MONTHS.map((m,i)=>{
+    const mo=i+1;
+    const total=members.reduce((s,mem)=>s+kpiTotalFor(mem.name,mo,year),0);
+    const isActive=mo===kpiSelectedMonth;
+    const isFuture=year===new Date().getFullYear()&&mo>curMonth;
+    return `<button class="kpi-month-btn${isActive?' active':''}" onclick="selectKPIMonth(${mo})" ${isFuture?'style="opacity:.4"':''}>
+      <span class="kpi-m-label">${m}</span>
+      <span class="kpi-m-pts" style="${!isActive?(total>=0?'color:var(--green-text)':'color:var(--red)'):''}">
+        ${total>=0?'+':''}${total}
+      </span>
+    </button>`;
+  }).join('');
+
+  renderKPIMonth(year);
+}
+
+function selectKPIMonth(mo){
+  kpiSelectedMonth=mo;
+  renderKPI();
+}
+
+function renderKPIMonth(year){
+  const mo=kpiSelectedMonth;
+  const members=allMembers.filter(m=>m.role==='member'||!m.role);
+  document.getElementById('kpi-month-label').textContent=`${MONTHS_FULL[mo-1]} ${year}`;
+  document.getElementById('kpi-history-label').textContent=`${MONTHS_FULL[mo-1]} ${year} — all members`;
+
+  // Sort members by total desc
+  const sorted=[...members].sort((a,b)=>kpiTotalFor(b.name,mo,year)-kpiTotalFor(a.name,mo,year));
+
+  document.getElementById('kpi-member-grid').innerHTML=sorted.map((m,idx)=>{
+    const total=kpiTotalFor(m.name,mo,year);
+    const bd=kpiBreakdown(m.name,mo,year);
+    const isTop=idx===0&&total>0;
+    return `<div class="kpi-card${isTop?' top':''}">
+      <div class="flex gap8 mb8">
+        ${avEl(m,32)}
+        <div>
+          <div class="fs13 fw5">${m.name}${isTop?' 🏆':''}</div>
+          <div class="fs11 c-hint">Estimator</div>
+        </div>
+        <button class="btn btn-outline btn-xs" style="margin-left:auto" onclick="openAddBonusFor('${m.name}')"><i class="ti ti-plus" style="font-size:11px"></i>Bonus</button>
+      </div>
+      <div class="kpi-total ${total>=0?'positive':'negative'}">${total>=0?'+':''}${total} pts</div>
+      <div class="fs11 c-hint mb8">Total this month</div>
+      <div class="kpi-breakdown">
+        <div class="kpi-b-item"><div class="kpi-b-val" style="color:#F59E0B">${bd.opening>=0?'+':''}${bd.opening}</div><div class="kpi-b-label"><span class="kpi-type-dot kpi-type-opening"></span>Opening</div></div>
+        <div class="kpi-b-item"><div class="kpi-b-val" style="color:var(--accent)">${bd.auto>=0?'+':''}${bd.auto}</div><div class="kpi-b-label"><span class="kpi-type-dot kpi-type-auto"></span>Tickets</div></div>
+        <div class="kpi-b-item"><div class="kpi-b-val" style="color:#8B5CF6">${bd.manual>=0?'+':''}${bd.manual}</div><div class="kpi-b-label"><span class="kpi-type-dot kpi-type-manual"></span>Bonus</div></div>
+      </div>
+    </div>`;
+  }).join('')||'<div class="c-hint fs13">No members yet.</div>';
+
+  // History table — all members this month
+  const entries=allKpiEntries.filter(e=>e.month===mo&&e.year===year).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  document.getElementById('kpi-history').innerHTML=entries.length
+    ?'<table class="tbl"><thead><tr><th>Member</th><th>Type</th><th>Points</th><th>Description</th><th>Ticket</th><th>Date</th></tr></thead><tbody>'+
+      entries.map(e=>`<tr>
+        <td class="fw5">${e.member_name}</td>
+        <td><span class="badge ${e.type==='opening'?'b-si':e.type==='auto'?'b-new':'b-review'}">${e.type}</span></td>
+        <td><span class="kpi-pt-badge ${e.points>0?'kpi-pt-pos':e.points<0?'kpi-pt-neg':'kpi-pt-neu'}">${e.points>0?'+':''}${e.points}</span></td>
+        <td class="c-muted">${e.description||'—'}</td>
+        <td class="c-hint" style="font-family:var(--mono);font-size:11px">${e.ticket_no||'—'}</td>
+        <td class="c-hint">${fmtDate(e.created_at?.split('T')[0])}</td>
+      </tr>`).join('')+'</tbody></table>'
+    :'<div class="empty-state" style="padding:2rem"><i class="ti ti-trophy"></i><p>No entries this month</p></div>';
+}
+
+// ── KPI MANAGER MODALS ────────────────────────────────────────
+function openKPISettings(){
+  const s=kpiSettings||{};
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;margin-bottom:1.25rem">
+      <div class="modal-title">KPI Settings</div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="field"><label>Point opening per member per month</label><input type="number" id="ks-opening" value="${s.point_opening??10}"><div class="field-hint">Given manually at start of each month.</div></div>
+    <div class="field"><label>Point on-target (ticket done ≤ deadline)</label><input type="number" id="ks-ontarget" value="${s.point_on_target??3}"></div>
+    <div class="field"><label>Point miss-target (ticket done > deadline)</label><input type="number" id="ks-miss" value="${s.point_miss_target??-2}"><div class="field-hint">Use negative number for penalty, e.g. -2</div></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveKPISettings()"><i class="ti ti-device-floppy" style="font-size:14px"></i>Save settings</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+async function saveKPISettings(){
+  const opening=parseInt(document.getElementById('ks-opening').value)||10;
+  const ontarget=parseInt(document.getElementById('ks-ontarget').value)||3;
+  const miss=parseInt(document.getElementById('ks-miss').value)||-2;
+  showLoading('Saving...');
+  try{
+    if(kpiSettings?.id){
+      await sbPatch(`kpi_settings?id=eq.${kpiSettings.id}`,{point_on_target:ontarget,point_miss_target:miss,point_opening:opening,updated_at:new Date().toISOString()});
+    } else {
+      await sbPost('kpi_settings',{workspace_id:currentWorkspace.id,point_on_target:ontarget,point_miss_target:miss,point_opening:opening});
+    }
+    const kpiSet=await sbGet(`kpi_settings?workspace_id=eq.${currentWorkspace.id}`);
+    kpiSettings=kpiSet&&kpiSet.length?kpiSet[0]:{point_on_target:ontarget,point_miss_target:miss,point_opening:opening};
+    hideLoading(); closeModal(); toast('KPI settings saved');
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+
+function openAddOpening(){
+  const year=parseInt(document.getElementById('kpi-year-sel')?.value||new Date().getFullYear());
+  const mo=kpiSelectedMonth;
+  const members=allMembers.filter(m=>m.role==='member'||!m.role);
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;margin-bottom:1.25rem">
+      <div>
+        <div class="modal-title">Set opening points</div>
+        <div class="modal-sub">${MONTHS_FULL[mo-1]} ${year}</div>
+      </div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="field-hint mb12">Default: ${kpiSettings?.point_opening??10} pts. Override per member below.</div>
+    ${members.map(m=>{
+      const existing=kpiEntriesFor(m.name,mo,year).find(e=>e.type==='opening');
+      return `<div class="flex gap8 mb8" style="align-items:center">
+        ${avEl(m,26)}
+        <span class="fs13 fw5" style="flex:1">${m.name}</span>
+        <input type="number" id="op-${m.name.replace(/\s/g,'_')}" value="${existing?existing.points:(kpiSettings?.point_opening??10)}" style="width:80px;border:0.5px solid var(--border-md);border-radius:var(--radius);padding:6px 8px;font-size:13px;font-family:var(--sans);text-align:center">
+        ${existing?'<span class="badge b-done" style="font-size:10px">Set</span>':''}
+      </div>`;
+    }).join('')}
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary" onclick="saveOpeningPoints(${mo},${year})"><i class="ti ti-star" style="font-size:14px"></i>Save opening points</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+async function saveOpeningPoints(mo,year){
+  const members=allMembers.filter(m=>m.role==='member'||!m.role);
+  showLoading('Saving...');
+  try{
+    for(const m of members){
+      const pts=parseInt(document.getElementById('op-'+m.name.replace(/\s/g,'_'))?.value)||0;
+      // Remove existing opening entry for this member/month/year
+      const existing=kpiEntriesFor(m.name,mo,year).find(e=>e.type==='opening');
+      if(existing) await sbDelete(`kpi_entries?id=eq.${existing.id}`);
+      await sbPost('kpi_entries',{
+        workspace_id:currentWorkspace.id,
+        member_name:m.name, month:mo, year, points:pts,
+        type:'opening', description:`Opening points ${MONTHS_FULL[mo-1]} ${year}`,
+        created_by:'Manager',
+      });
+    }
+    allKpiEntries=await sbGet(`kpi_entries?workspace_id=eq.${currentWorkspace.id}&year=in.(${year},${year-1})&order=created_at.desc`)||[];
+    hideLoading(); closeModal(); toast('Opening points saved'); renderKPI();
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+
+function openAddBonus(){
+  openAddBonusFor('');
+}
+function openAddBonusFor(memberName){
+  const year=parseInt(document.getElementById('kpi-year-sel')?.value||new Date().getFullYear());
+  const mo=kpiSelectedMonth;
+  const members=allMembers.filter(m=>m.role==='member'||!m.role);
+  document.getElementById('modal-box').innerHTML=`
+    <div class="flex gap8" style="justify-content:space-between;margin-bottom:1.25rem">
+      <div>
+        <div class="modal-title">Add bonus / penalty</div>
+        <div class="modal-sub">${MONTHS_FULL[mo-1]} ${year}</div>
+      </div>
+      <button class="btn btn-outline btn-xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="field"><label>Member</label>
+      <select id="bonus-member">
+        <option value="">-- Select member --</option>
+        ${members.map(m=>`<option value="${m.name}" ${m.name===memberName?'selected':''}>${m.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field"><label>Points</label>
+      <input type="number" id="bonus-pts" value="5" placeholder="Use negative for penalty, e.g. -3">
+      <div class="field-hint">Positive = bonus, negative = penalty</div>
+    </div>
+    <div class="field"><label>Description / reason</label>
+      <input type="text" id="bonus-desc" placeholder="e.g. Exceptional work on tender, Late submission">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveBonus(${mo},${year})"><i class="ti ti-plus" style="font-size:14px"></i>Add entry</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.getElementById('modal-bg').classList.add('show');
+}
+async function saveBonus(mo,year){
+  const memberName=document.getElementById('bonus-member').value;
+  const pts=parseInt(document.getElementById('bonus-pts').value);
+  const desc=document.getElementById('bonus-desc').value.trim();
+  if(!memberName){alert('Select a member.');return;}
+  if(isNaN(pts)||pts===0){alert('Enter a non-zero point value.');return;}
+  showLoading('Saving...');
+  try{
+    await sbPost('kpi_entries',{
+      workspace_id:currentWorkspace.id,
+      member_name:memberName, month:mo, year, points:pts,
+      type:'manual', description:desc||'Manual adjustment',
+      created_by:'Manager',
+    });
+    allKpiEntries=await sbGet(`kpi_entries?workspace_id=eq.${currentWorkspace.id}&year=in.(${year},${year-1})&order=created_at.desc`)||[];
+    hideLoading(); closeModal(); toast('Entry added'); renderKPI();
+  } catch(e){ hideLoading(); toast('Error: '+e.message,true); }
+}
+
+// ── KPI MEMBER RENDER ─────────────────────────────────────────
+function renderMemberKPI(){
+  if(!currentMember) return;
+  const name=currentMember.name;
+  const now=new Date();
+  const curYear=now.getFullYear();
+  const curMonth=now.getMonth()+1;
+  document.getElementById('mem-kpi-title').textContent=`${name} — My KPI`;
+
+  // Current month stats
+  const total=kpiTotalFor(name,curMonth,curYear);
+  const bd=kpiBreakdown(name,curMonth,curYear);
+  const onTarget=allKpiEntries.filter(e=>e.member_name===name&&e.type==='auto'&&e.points>0&&e.year===curYear&&e.month===curMonth).length;
+  const missed=allKpiEntries.filter(e=>e.member_name===name&&e.type==='auto'&&e.points<0&&e.year===curYear&&e.month===curMonth).length;
+  document.getElementById('mem-kpi-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">This month total</div><div class="stat-val ${total>=0?'':'c-red'}">${total>=0?'+':''}${total} pts</div></div>
+    <div class="stat"><div class="stat-label" style="color:var(--green-text)">On target</div><div class="stat-val" style="color:var(--green-text)">${onTarget} tickets</div></div>
+    <div class="stat"><div class="stat-label" style="color:var(--red)">Missed</div><div class="stat-val" style="color:var(--red)">${missed} tickets</div></div>`;
+
+  // Monthly overview grid
+  document.getElementById('mem-kpi-months').innerHTML=MONTHS.map((m,i)=>{
+    const mo=i+1;
+    const isCur=mo===curMonth&&curYear===curYear;
+    const isFuture=mo>curMonth;
+    const tot=kpiTotalFor(name,mo,curYear);
+    return `<div class="member-kpi-cell${isCur?' current':''}" style="${isFuture?'opacity:.35':''}">
+      <div class="member-kpi-month-label">${m}</div>
+      <div class="member-kpi-month-pts ${tot>=0?'':'c-red'}">${isFuture?'—':`${tot>=0?'+':''}${tot}`}</div>
+    </div>`;
+  }).join('');
+
+  // Full history this year
+  const entries=allKpiEntries.filter(e=>e.member_name===name&&e.year===curYear).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  document.getElementById('mem-kpi-history').innerHTML=entries.length
+    ?'<table class="tbl"><thead><tr><th>Month</th><th>Type</th><th>Points</th><th>Description</th><th>Ticket</th><th>Date</th></tr></thead><tbody>'+
+      entries.map(e=>`<tr>
+        <td class="fw5">${MONTHS[e.month-1]}</td>
+        <td><span class="badge ${e.type==='opening'?'b-si':e.type==='auto'?'b-new':'b-review'}">${e.type}</span></td>
+        <td><span class="kpi-pt-badge ${e.points>0?'kpi-pt-pos':e.points<0?'kpi-pt-neg':'kpi-pt-neu'}">${e.points>0?'+':''}${e.points}</span></td>
+        <td class="c-muted">${e.description||'—'}</td>
+        <td class="c-hint" style="font-family:var(--mono);font-size:11px">${e.ticket_no||'—'}</td>
+        <td class="c-hint">${fmtDate(e.created_at?.split('T')[0])}</td>
+      </tr>`).join('')+'</tbody></table>'
+    :'<div class="empty-state" style="padding:2rem"><i class="ti ti-trophy"></i><p>No KPI entries yet this year</p></div>';
+}
+
+// ── UTILS ────────────────────────────────────────────────────
+function togglePw(id,btn){
+  const inp=document.getElementById(id);
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  btn.querySelector('i').className=show?'ti ti-eye-off':'ti ti-eye';
+}
+function toast(msg,isErr=false,dur=2800){
+  const el=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  el.className='toast show'+(isErr?' error':'');
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.classList.remove('show'),dur);
+}
+
+// ── AUTO REFRESH ON TAB VISIBLE ──────────────────────────────
+function rerenderActive(){
+  if(currentRole==='manager'){
+    const a=document.querySelector('#manager-screen .page.active'); if(!a) return;
+    if(a.id==='mgr-dashboard') renderDashboard();
+    if(a.id==='mgr-board') renderBoard();
+    if(a.id==='mgr-tickets') renderTable();
+  }
+  if(currentRole==='admin'){
+    const a=document.querySelector('#admin-screen .page.active'); if(!a) return;
+    if(a.id==='adm-board') renderAdminBoard();
+    if(a.id==='adm-tickets') renderAdminTable();
+  }
+  if(currentRole==='member') renderMyTickets();
+  if(currentRole==='siteadmin') renderSiteAdminTickets();
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&currentRole){
+    fetchAll(currentRole).then(()=>rerenderActive());
+  }
+});
+
+init();
+</script>
+</body>
+</html>

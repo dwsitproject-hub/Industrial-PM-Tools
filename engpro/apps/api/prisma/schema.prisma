@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MANAGER
+  ADMIN
+  SITE_ADMIN
+  ESTIMATOR
+
+  @@map("user_role")
+}
+
+enum TicketStatus {
+  NEW
+  IN_PROGRESS_ESTIMATION
+  IN_PROGRESS_TENDER
+  DONE
+  HOLD
+
+  @@map("ticket_status")
+}
+
+enum TicketPriority {
+  URGENT
+  NORMAL
+  LOW
+
+  @@map("ticket_priority")
+}
+
+enum WorkType {
+  PROJECT_TENDER
+  OPS_TENDER
+  SITE_INSTRUCTION
+  BUDGETING_INTERNAL
+
+  @@map("work_type")
+}
+
+enum RequestSource {
+  WHATSAPP
+  EMAIL
+  VERBAL
+
+  @@map("request_source")
+}
+
+enum KpiEntryType {
+  OPENING
+  AUTO
+  MANUAL
+  REVERSAL
+
+  @@map("kpi_entry_type")
+}
+
+enum TenderStatus {
+  SUBMITTED
+  WON
+  LOST
+  CANCELLED
+
+  @@map("tender_status")
+}
+
+enum TicketScope {
+  ALL
+  OWN
+
+  @@map("ticket_scope")
+}
+
+model Workspace {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company      String
+  subtitle     String?
+  ticketPrefix String   @default("EST") @map("ticket_prefix")
+  ticketSeq    BigInt   @default(0) @map("ticket_seq")
+  timezone     String   @default("Asia/Jakarta")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sites       Site[]
+  users       User[]
+  tickets     Ticket[]
+  kpiSettings KpiSettings?
+  kpiEntries  KpiEntry[]
+  roleConfigs RoleConfig[]
+
+  @@map("workspaces")
+}
+
+model RoleConfig {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String      @map("workspace_id") @db.Uuid
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        UserRole
+  ticketScope TicketScope @default(ALL) @map("ticket_scope")
+  permissions Json
+  updatedById String?     @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, role])
+  @@map("role_configs")
+}
+
+model Site {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  color       Int      @default(3)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  users   User[]
+  tickets Ticket[]
+
+  @@unique([workspaceId, name])
+  @@map("sites")
+}
+
+model User {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId        String    @map("workspace_id") @db.Uuid
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  username           String
+  fullName           String    @map("full_name")
+  email              String?
+  passwordHash       String    @map("password_hash")
+  role               UserRole
+  siteId             String?   @map("site_id") @db.Uuid
+  site               Site?     @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  avatarColor        Int       @default(0) @map("avatar_color")
+  isActive           Boolean   @default(true) @map("is_active")
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  assignedTickets  Ticket[]       @relation("TicketAssignee")
+  submittedTickets Ticket[]       @relation("TicketSubmitter")
+  notes            TicketNote[]
+  kpiEntries       KpiEntry[]     @relation("KpiUser")
+  kpiCreated       KpiEntry[]     @relation("KpiCreator")
+  refreshTokens    RefreshToken[]
+  auditEntries     AuditLog[]
+
+  @@unique([workspaceId, username])
+  @@map("users")
+}
+
+model Ticket {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId    String         @map("workspace_id") @db.Uuid
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ticketNo       String         @map("ticket_no")
+  legacyTicketNo String?        @map("legacy_ticket_no")
+  name           String
+  type           WorkType
+  priority       TicketPriority
+  status         TicketStatus   @default(NEW)
+  requestor      String?
+  source         RequestSource?
+  description    String?
+  deadline       DateTime       @db.Date
+  assigneeId     String?        @map("assignee_id") @db.Uuid
+  assignee       User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  siteId         String?        @map("site_id") @db.Uuid
+  site           Site?          @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  submittedById  String?        @map("submitted_by_id") @db.Uuid
+  submittedBy    User?          @relation("TicketSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  tenderStatus   TenderStatus?  @map("tender_status")
+  tenderValue    Decimal?       @map("tender_value") @db.Decimal(18, 2)
+  version        Int            @default(1)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt    DateTime?      @map("completed_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  notes      TicketNote[]
+  kpiEntries KpiEntry[]
+
+  @@unique([workspaceId, ticketNo])
+  @@index([workspaceId, status])
+  @@index([workspaceId, assigneeId])
+  @@index([workspaceId, siteId])
+  @@index([workspaceId, deadline])
+  @@map("tickets")
+}
+
+model TicketNote {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketId     String       @map("ticket_id") @db.Uuid
+  ticket       Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId     String?      @map("author_id") @db.Uuid
+  author       User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorLabel  String       @map("author_label")
+  content      String
+  statusAtTime TicketStatus @map("status_at_time")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_notes")
+}
+
+model KpiSettings {
+  workspaceId     String    @id @map("workspace_id") @db.Uuid
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pointOpening    Int       @default(10) @map("point_opening")
+  pointOnTarget   Int       @default(3) @map("point_on_target")
+  pointMissTarget Int       @default(-2) @map("point_miss_target")
+  updatedById     String?   @map("updated_by_id") @db.Uuid
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("kpi_settings")
+}
+
+model KpiEntry {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String       @map("workspace_id") @db.Uuid
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String       @map("user_id") @db.Uuid
+  user        User         @relation("KpiUser", fields: [userId], references: [id], onDelete: Restrict)
+  month       Int
+  year        Int
+  points      Int
+  type        KpiEntryType
+  description String?
+  ticketId    String?      @map("ticket_id") @db.Uuid
+  ticket      Ticket?      @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  ticketNo    String?      @map("ticket_no")
+  createdById String?      @map("created_by_id") @db.Uuid
+  createdByUser User?      @relation("KpiCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   String       @default("System") @map("created_by")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, year, month])
+  @@index([userId, year])
+  @@map("kpi_entries")
+}
+
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+  workspaceId String   @map("workspace_id") @db.Uuid
+  actorId     String?  @map("actor_id") @db.Uuid
+  actor       User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id") @db.Uuid
+  action      String
+  before      Json?
+  after       Json?
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}
+
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId  String    @map("family_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  userAgent String?   @map("user_agent")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}

@@ -1,0 +1,22 @@
+# EngPro STAGING — BE server (172.28.92.57)
+# API bound to the private IP only (same pattern as pct-api). Database is ApsaraDB RDS.
+# Run from: /opt/engpro/infra/staging  (requires .env.staging next to this file)
+name: engpro-staging-be
+
+services:
+  api:
+    build:
+      context: ../../apps/api
+      dockerfile: ../../infra/Dockerfile.api
+    image: engpro-api:staging
+    container_name: engpro-staging-api
+    env_file: .env.staging
+    ports:
+      - "172.28.92.57:4010:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/v1/ready',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

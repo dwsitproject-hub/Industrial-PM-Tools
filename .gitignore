@@ -1,0 +1,20 @@
+# dependencies & build output
+node_modules/
+engpro/apps/api/dist/
+engpro/apps/web/dist/
+
+# environment files — never commit secrets
+engpro/apps/api/.env
+engpro/infra/staging/.env.staging
+*.env.local
+
+# database dumps & legacy data export (real business data + legacy plaintext passwords)
+engpro/deploy/
+db/
+
+# generated reports
+engpro/apps/api/prisma/renumbered_tickets_report.csv
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
