@@ -1,25 +1,33 @@
 # EngPro — Estimation Ticket Management (Production Rebuild)
 
-Implements **PRD v2.0** and **Technical Documentation v1.0**:
+Implements **PRD v2.0** and **Technical Documentation v1.0** (both in this repo root):
 React 18 + Nginx · NestJS 10 + Prisma · PostgreSQL 16 · socket.io realtime · JWT + Argon2id auth.
 
-## Layout
+## Repository layout
 
 ```
-apps/api      NestJS backend (auth, users, sites, workspace, tickets, notes, kpi, audit, events)
-apps/web      React SPA (Vite + TanStack Query + socket.io-client)
-infra         docker-compose.yml, Dockerfile.api, nginx config
+backend/     NestJS API — auth, users, sites, workspace, tickets, notes, kpi, roles, audit, events
+             + Dockerfile, docker-compose.staging.yml, .env.staging.example, Prisma schema/migrations/ETL
+frontend/    React SPA (Vite + TanStack Query + socket.io-client)
+             + nginx/{local,staging}.conf, docker-compose.staging.yml
+infra/       docker-compose.local.yml — the all-in-one local stack (db + backend + frontend)
+docs/        legacy system source + screenshots the PRDs were derived from
+deploy/      database dumps for migration (git-ignored)
+db/          legacy Supabase CSV export (git-ignored — contains real data)
 ```
+
+Backend and frontend are independently deployable: in staging the FE server only needs
+`frontend/`, the BE server only needs `backend/`. See **[DEPLOY_STAGING.md](DEPLOY_STAGING.md)**.
 
 ## Run locally (Docker)
 
 ```bash
-cd apps/web && npm install && npm run build     # build the SPA (served by nginx)
-cd ../../infra && docker compose up -d --build  # db + api + nginx
+cd frontend && npm install && npm run build && cd ..      # build the SPA (served by nginx)
+docker compose -f infra/docker-compose.local.yml up -d --build
+
 # one-time: migrate the legacy Supabase CSV export (db/ folder) into the stack
-cd ../apps/api && npm install
-DATABASE_URL=postgresql://engpro:engpro@localhost:5440/engpro \
-LEGACY_DIR="../../..//db" npx ts-node -T prisma/seed-legacy.ts
+cd backend && npm install
+DATABASE_URL=postgresql://engpro:engpro@localhost:5440/engpro npx ts-node -T prisma/seed-legacy.ts
 ```
 
 Open **http://localhost:8090**
@@ -34,13 +42,19 @@ Open **http://localhost:8090**
 > Local convenience only: seeded users skip the forced password change. For a real
 > cutover set SEED_* env vars and enable `must_change_password` in the seed.
 
+## Frontend development
+
+```bash
+cd frontend && npm run dev      # Vite dev server on :5173, proxies /api and /ws to :3000
+```
+
 ## Tests
 
 ```bash
 # dev Postgres for tests (once): docker run -d --name engpro-dev-db -p 5439:5432 \
 #   -e POSTGRES_USER=engpro -e POSTGRES_PASSWORD=engpro -e POSTGRES_DB=engpro postgres:16-alpine
 #   then: docker exec engpro-dev-db psql -U engpro -c "CREATE DATABASE engpro_test;"
-cd apps/api
+cd backend
 DATABASE_URL=postgresql://engpro:engpro@localhost:5439/engpro_test npx prisma migrate deploy
 npm run test:e2e     # 67 tests: auth, RBAC, roles matrix, numbering race, locking, KPI engine, audit
 ```

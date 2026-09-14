@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const PROD_WS = '73e3be57-c404-4463-b336-8d429e022477';
-const LEGACY_DIR = process.env.LEGACY_DIR || path.join(__dirname, '..', '..', '..', '..', 'db');
+const LEGACY_DIR = process.env.LEGACY_DIR || path.join(__dirname, '..', '..', 'db');
 const MANAGER_PASSWORD = process.env.SEED_MANAGER_PASSWORD || 'Manager@2026!';
 const MEMBER_PASSWORD = process.env.SEED_MEMBER_PASSWORD || 'ChangeMe123!';
 
