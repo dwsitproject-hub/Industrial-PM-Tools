@@ -27,7 +27,7 @@ docker compose -f infra/docker-compose.local.yml up -d --build
 
 # one-time: migrate the legacy Supabase CSV export (db/ folder) into the stack
 cd backend && npm install
-DATABASE_URL=postgresql://engpro:engpro@localhost:5440/engpro npx ts-node -T prisma/seed-legacy.ts
+DATABASE_URL=postgresql://engpro:engpro@localhost:5440/industrial_pm npx ts-node -T prisma/seed-legacy.ts
 ```
 
 Open **http://localhost:8090**
@@ -52,10 +52,10 @@ cd frontend && npm run dev      # Vite dev server on :5173, proxies /api and /ws
 
 ```bash
 # dev Postgres for tests (once): docker run -d --name engpro-dev-db -p 5439:5432 \
-#   -e POSTGRES_USER=engpro -e POSTGRES_PASSWORD=engpro -e POSTGRES_DB=engpro postgres:16-alpine
-#   then: docker exec engpro-dev-db psql -U engpro -c "CREATE DATABASE engpro_test;"
+#   -e POSTGRES_USER=engpro -e POSTGRES_PASSWORD=engpro -e POSTGRES_DB=industrial_pm postgres:16-alpine
+#   then: docker exec engpro-dev-db psql -U engpro -d postgres -c "CREATE DATABASE industrial_pm_test;"
 cd backend
-DATABASE_URL=postgresql://engpro:engpro@localhost:5439/engpro_test npx prisma migrate deploy
+DATABASE_URL=postgresql://engpro:engpro@localhost:5439/industrial_pm_test npx prisma migrate deploy
 npm run test:e2e     # 67 tests: auth, RBAC, roles matrix, numbering race, locking, KPI engine, audit
 ```
 

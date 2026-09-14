@@ -63,11 +63,11 @@ export PGPASSWORD='<engpro_stg password>'
 # connectivity + create database
 docker run --rm -e PGPASSWORD postgres:16-alpine \
   psql -h $RDS_HOST -U engpro_stg -d postgres \
-  -c "CREATE DATABASE engpro_staging;"
+  -c "CREATE DATABASE industrial_pm;"
 
 # both required extensions must be available (they are standard on ApsaraDB PG)
 docker run --rm -e PGPASSWORD postgres:16-alpine \
-  psql -h $RDS_HOST -U engpro_stg -d engpro_staging \
+  psql -h $RDS_HOST -U engpro_stg -d industrial_pm \
   -c "SELECT name, default_version FROM pg_available_extensions WHERE name IN ('pg_trgm','pgcrypto');"
 ```
 
@@ -86,10 +86,10 @@ cd frontend && npm run build && cd ..
 
 # 2.2 database dump of your local EngPro (custom format, includes schema + data
 #     + Prisma migration history) — ALREADY CREATED & restore-verified:
-#     deploy/engpro-local-20260914.dump
+#     deploy/industrial_pm-local-20260914.dump
 #     To refresh it right before deploying:
-docker exec engpro-db pg_dump -U engpro -Fc -f /tmp/engpro-local.dump engpro
-docker cp engpro-db:/tmp/engpro-local.dump deploy/engpro-local-$(date +%Y%m%d).dump
+docker exec engpro-db pg_dump -U engpro -Fc -f /tmp/industrial_pm-local.dump industrial_pm
+docker cp engpro-db:/tmp/industrial_pm-local.dump deploy/industrial_pm-local-$(date +%Y%m%d).dump
 # (Git Bash on Windows: prefix docker commands with MSYS_NO_PATHCONV=1)
 ```
 
@@ -106,41 +106,41 @@ write access):
 
 ```bash
 # on EACH server, once
-ssh-keygen -t ed25519 -C "engpro-staging-$(hostname)" -f ~/.ssh/id_ed25519_engpro -N ''
-cat ~/.ssh/id_ed25519_engpro.pub     # register this on GitHub as a read-only deploy key
+ssh-keygen -t ed25519 -C "industrial-pm-staging-$(hostname)" -f ~/.ssh/id_ed25519_industrialpm -N ''
+cat ~/.ssh/id_ed25519_industrialpm.pub     # register this on GitHub as a read-only deploy key
 cat >> ~/.ssh/config <<'EOF'
-Host github-engpro
+Host github-industrialpm
   HostName github.com
   User git
-  IdentityFile ~/.ssh/id_ed25519_engpro
+  IdentityFile ~/.ssh/id_ed25519_industrialpm
   IdentitiesOnly yes
 EOF
 
-git clone git@github-engpro:dwsitproject-hub/Industrial-PM-Tools.git /opt/engpro
+git clone git@github-industrialpm:dwsitproject-hub/Industrial-PM-Tools.git /opt/industrial_pm
 ```
 
-Updating later is then just `cd /opt/engpro && git pull`.
-The FE server still needs a built SPA — either run `cd /opt/engpro/frontend && npm ci && npm run build`
+Updating later is then just `cd /opt/industrial_pm && git pull`.
+The FE server still needs a built SPA — either run `cd /opt/industrial_pm/frontend && npm ci && npm run build`
 on the server, or `scp` your local `frontend/dist` (step 6).
 
 ### Method B — ship only the needed folder over scp
 
 ```bash
 # from your laptop
-tar --exclude='node_modules' -czf engpro-backend.tar.gz backend
-tar --exclude='node_modules' -czf engpro-frontend.tar.gz frontend   # includes dist/
+tar --exclude='node_modules' -czf industrial-pm-backend.tar.gz backend
+tar --exclude='node_modules' -czf industrial-pm-frontend.tar.gz frontend   # includes dist/
 
-scp engpro-backend.tar.gz  root@172.28.92.57:/opt/
-scp engpro-frontend.tar.gz root@172.28.92.56:/opt/
+scp industrial-pm-backend.tar.gz  root@172.28.92.57:/opt/
+scp industrial-pm-frontend.tar.gz root@172.28.92.56:/opt/
 
 # on the BE server
-cd /opt && mkdir -p engpro && tar -xzf engpro-backend.tar.gz -C engpro && rm engpro-backend.tar.gz
+cd /opt && mkdir -p industrial_pm && tar -xzf industrial-pm-backend.tar.gz -C industrial_pm && rm industrial-pm-backend.tar.gz
 # on the FE server
-cd /opt && mkdir -p engpro && tar -xzf engpro-frontend.tar.gz -C engpro && rm engpro-frontend.tar.gz
+cd /opt && mkdir -p industrial_pm && tar -xzf industrial-pm-frontend.tar.gz -C industrial_pm && rm industrial-pm-frontend.tar.gz
 ```
 
-Either way you end up with `/opt/engpro/backend` on the BE server and
-`/opt/engpro/frontend` on the FE server.
+Either way you end up with `/opt/industrial_pm/backend` on the BE server and
+`/opt/industrial_pm/frontend` on the FE server.
 
 ---
 
@@ -160,17 +160,17 @@ On the **BE server**:
 
 ```bash
 # copy the dump up from your laptop first (it is git-ignored, so it never comes with a clone):
-#   scp deploy/engpro-local-20260914.dump root@172.28.92.57:/opt/engpro-dump/
+#   scp deploy/industrial_pm-local-20260914.dump root@172.28.92.57:/opt/industrial_pm-dump/
 export RDS_HOST=pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com
 export PGPASSWORD='<engpro_stg password>'
 
-docker run --rm -e PGPASSWORD -v /opt/engpro-dump:/dump postgres:16-alpine \
-  pg_restore -h $RDS_HOST -U engpro_stg -d engpro_staging \
-  --no-owner --no-privileges /dump/engpro-local-20260914.dump
+docker run --rm -e PGPASSWORD -v /opt/industrial_pm-dump:/dump postgres:16-alpine \
+  pg_restore -h $RDS_HOST -U engpro_stg -d industrial_pm \
+  --no-owner --no-privileges /dump/industrial_pm-local-20260914.dump
 
 # verify
 docker run --rm -e PGPASSWORD postgres:16-alpine \
-  psql -h $RDS_HOST -U engpro_stg -d engpro_staging -c \
+  psql -h $RDS_HOST -U engpro_stg -d industrial_pm -c \
   "SELECT (SELECT count(*) FROM tickets)  AS tickets,
           (SELECT count(*) FROM users)    AS users,
           (SELECT count(*) FROM ticket_notes) AS notes,
@@ -188,11 +188,11 @@ Use only if you want a pristine staging copy of the legacy data instead of your 
 
 ```bash
 # local: ship the legacy CSV export
-scp -r "D:/Claude/Industrial PM Tools/db" root@172.28.92.57:/opt/engpro-legacy-db
+scp -r "D:/Claude/Industrial PM Tools/db" root@172.28.92.57:/opt/industrial_pm-legacy-db
 
 # BE server: run the validated ETL (Tech Doc §7) with STAGING passwords
-docker run --rm -v /opt/engpro/backend:/app -v /opt/engpro-legacy-db:/legacy -w /app \
-  -e DATABASE_URL="postgresql://engpro_stg:<pw>@$RDS_HOST:5432/engpro_staging" \
+docker run --rm -v /opt/industrial_pm/backend:/app -v /opt/industrial_pm-legacy-db:/legacy -w /app \
+  -e DATABASE_URL="postgresql://engpro_stg:<pw>@$RDS_HOST:5432/industrial_pm" \
   -e LEGACY_DIR=/legacy \
   -e SEED_MANAGER_PASSWORD='<strong manager pw>' \
   -e SEED_MEMBER_PASSWORD='<strong shared temp pw>' \
@@ -207,7 +207,7 @@ exits non-zero if anything is off.
 ## 5. Deploy the backend (BE server, 172.28.92.57)
 
 ```bash
-cd /opt/engpro/backend
+cd /opt/industrial_pm/backend
 
 # 5.1 environment — copy the template and fill it in
 cp .env.staging.example .env.staging
@@ -229,7 +229,7 @@ curl -s http://172.28.92.57:4010/api/v1/workspace   # shows "KPN Downstream-Esti
 
 | Variable | Staging value |
 |---|---|
-| `DATABASE_URL` | `postgresql://engpro_stg:<pw>@pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com:5432/engpro_staging?connection_limit=10` |
+| `DATABASE_URL` | `postgresql://engpro_stg:<pw>@pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com:5432/industrial_pm?connection_limit=10` |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | two different `openssl rand -hex 64` values |
 | `CORS_ORIGIN` | `http://172.28.92.56:3060` |
 | `COOKIE_SECURE` | `false` (staging is plain HTTP — `true` would break login) |
@@ -240,12 +240,12 @@ curl -s http://172.28.92.57:4010/api/v1/workspace   # shows "KPN Downstream-Esti
 ## 6. Deploy the frontend (FE server, 172.28.92.56)
 
 ```bash
-cd /opt/engpro/frontend
+cd /opt/industrial_pm/frontend
 
 # the SPA must be built. Either build on the server:
 #   npm ci && npm run build
 # or ship your local build from the laptop:
-#   scp -r frontend/dist/* root@172.28.92.56:/opt/engpro/frontend/dist/
+#   scp -r frontend/dist/* root@172.28.92.56:/opt/industrial_pm/frontend/dist/
 ls dist/index.html || echo "BUILD MISSING — build or upload dist/ first"
 
 docker compose -f docker-compose.staging.yml up -d
@@ -269,7 +269,7 @@ new password at first staging login, and drop any restored sessions:
 
 ```bash
 docker run --rm -e PGPASSWORD postgres:16-alpine \
-  psql -h $RDS_HOST -U engpro_stg -d engpro_staging \
+  psql -h $RDS_HOST -U engpro_stg -d industrial_pm \
   -c "UPDATE users SET must_change_password = true;" \
   -c "TRUNCATE refresh_tokens;"
 ```
@@ -307,13 +307,13 @@ Also confirm:
 ```bash
 # laptop
 cd frontend && npm run build
-scp -r dist/* root@172.28.92.56:/opt/engpro/frontend/dist/
-# or, with Method A: on the server -> cd /opt/engpro && git pull && cd frontend && npm ci && npm run build
+scp -r dist/* root@172.28.92.56:/opt/industrial_pm/frontend/dist/
+# or, with Method A: on the server -> cd /opt/industrial_pm && git pull && cd frontend && npm ci && npm run build
 ```
 
 **Backend change** (BE server):
 ```bash
-cd /opt/engpro && git pull                     # Method A; otherwise re-ship backend/
+cd /opt/industrial_pm && git pull                     # Method A; otherwise re-ship backend/
 cd backend && docker compose -f docker-compose.staging.yml up -d --build
 ```
 Database migrations in `backend/prisma/migrations/` apply automatically on container start.

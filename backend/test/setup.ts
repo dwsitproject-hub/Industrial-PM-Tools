@@ -1,5 +1,5 @@
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
-  || 'postgresql://engpro:engpro@localhost:5439/engpro_test';
+  || 'postgresql://engpro:engpro@localhost:5439/industrial_pm_test';
 process.env.JWT_ACCESS_SECRET = 'test_access_secret_0123456789abcdef';
 process.env.JWT_REFRESH_SECRET = 'test_refresh_secret_0123456789abcdef';
 process.env.ACCESS_TTL = '15m';

@@ -10,13 +10,13 @@ services:
     environment:
       POSTGRES_USER: engpro
       POSTGRES_PASSWORD: engpro
-      POSTGRES_DB: engpro
+      POSTGRES_DB: industrial_pm
     volumes:
       - engpro-pgdata:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5440:5432"   # host access for the one-time legacy ETL
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U engpro -d engpro"]
+      test: ["CMD-SHELL", "pg_isready -U engpro -d industrial_pm"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -28,7 +28,7 @@ services:
       dockerfile: Dockerfile
     container_name: engpro-api
     environment:
-      DATABASE_URL: postgresql://engpro:engpro@db:5432/engpro
+      DATABASE_URL: postgresql://engpro:engpro@db:5432/industrial_pm
       JWT_ACCESS_SECRET: local_access_secret_change_me_1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e
       JWT_REFRESH_SECRET: local_refresh_secret_change_me_9f8e7d6c5b4a3928171605f4e3d2c1b0
       ACCESS_TTL: 15m

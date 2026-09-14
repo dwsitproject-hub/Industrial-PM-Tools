@@ -1,7 +1,7 @@
 # EngPro BACKEND — STAGING (BE server 172.28.92.57)
 # API bound to the private IP only (same pattern as the other staging APIs on this host).
 # Database is ApsaraDB RDS — no database container here.
-# Run from /opt/engpro/backend :  docker compose -f docker-compose.staging.yml up -d --build
+# Run from /opt/industrial_pm/backend :  docker compose -f docker-compose.staging.yml up -d --build
 # Requires .env.staging in this folder (see .env.staging.example).
 name: engpro-staging-be
 

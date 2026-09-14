@@ -1,6 +1,6 @@
 # EngPro FRONTEND — STAGING (FE server 172.28.92.56)
 # Publishes the SPA on :3060 and proxies /api + /ws to the backend server.
-# Run from /opt/engpro/frontend :  docker compose -f docker-compose.staging.yml up -d
+# Run from /opt/industrial_pm/frontend :  docker compose -f docker-compose.staging.yml up -d
 # Requires the built SPA in ./dist (npm run build, or ship dist/ from CI).
 name: engpro-staging-fe
 
