@@ -59,6 +59,8 @@ Repository: `git@github.com:dwsitproject-hub/Industrial-PM-Tools.git`
 ```bash
 export RDS_HOST=pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com
 export PGPASSWORD='<engpro_stg password>'
+# fail loudly if these are not set in THIS shell (a new SSH session loses them):
+: "${RDS_HOST:?export RDS_HOST first}" ; : "${PGPASSWORD:?export PGPASSWORD first}"
 
 # connectivity + create database
 docker run --rm -e PGPASSWORD postgres:16-alpine \
@@ -196,6 +198,8 @@ ls -la /opt/industrial_pm/dump/
 ```bash
 export RDS_HOST=pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com
 export PGPASSWORD='<engpro_stg password>'
+# fail loudly if these are not set in THIS shell (a new SSH session loses them):
+: "${RDS_HOST:?export RDS_HOST first}" ; : "${PGPASSWORD:?export PGPASSWORD first}"
 
 docker run --rm -e PGPASSWORD -e RDS_HOST -v /opt/industrial_pm/dump:/dump postgres:16-alpine \
   sh -c 'pg_restore -h "$RDS_HOST" -U engpro_stg -d industrial_pm \
@@ -365,6 +369,7 @@ For data, use RDS point-in-time restore.
 | `permission denied to create extension` during migrate/restore | The RDS account is not a **privileged** account — recreate it as privileged |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |
 | Header dot stays **Offline** | `/ws` proxy block missing/misconfigured in nginx, or security group blocks the FE→BE connection |
+| `connection to server on socket "/var/run/postgresql/..." failed` | `RDS_HOST` was empty, so `-h` got nothing and the client fell back to a local socket inside the container. `export RDS_HOST=...` and `export PGPASSWORD=...` in the **same** shell session as the `docker run` — `-e VAR` only forwards a variable that is actually set on the host |
 | `pg_restore: could not open input file` | The dump was never uploaded to the server — do step **4A.1**. Docker creates an empty `/opt/industrial_pm/dump` when the host path does not exist, so the mount succeeds but the file is absent |
 | `pg_restore` errors about roles/ownership | Add `--no-owner --no-privileges` (already in the command above) |
 | Port already allocated on `up -d` | Another stack took 3060/4010 since the check — pick a new free port in the compose file (and update the nginx `proxy_pass` / security group accordingly) |
