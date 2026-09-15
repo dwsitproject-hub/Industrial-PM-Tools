@@ -413,6 +413,15 @@ scp -r dist/* root@172.28.92.56:/opt/industrial_pm/frontend/dist/
 # or, with Method A: on the server -> cd /opt/industrial_pm && git pull && cd frontend && npm ci && npm run build
 ```
 
+> **Deploy both sides when the API contract changes** (e.g. the username → email login switch).
+> A stale SPA posting the old payload fails validation and the old build reports it as
+> "Invalid username or password", which looks like a credential problem but is not.
+> Check which bundle is actually being served, and hard-refresh the browser (Ctrl+Shift+R) —
+> assets are cached `immutable` for a year:
+> ```bash
+> curl -s http://localhost:3060/ | grep -o 'assets/index-[^"]*\.js'   # compare with your local build
+> ```
+
 **Backend change** (BE server):
 ```bash
 cd /opt/industrial_pm && git pull                     # Method A; otherwise re-ship backend/
@@ -434,6 +443,7 @@ For data, use RDS point-in-time restore.
 | API logs `P1013 ... invalid port number in database URL` | The password in `DATABASE_URL` contains a character that breaks URL parsing (usually `@`, also `#/:?&%+`). Percent-encode it (`@`=`%40`, `#`=`%23`, `/`=`%2F`, `:`=`%3A`). Check with `awk -F'@' '/^DATABASE_URL/{print NF-1" at-signs"}' .env.staging` — it must print `1 at-signs` |
 | API logs `P1001: Can't reach database server` | BE server IP missing from the RDS whitelist, or wrong host/password in `DATABASE_URL` |
 | `permission denied to create extension "pg_trgm"` / `permission denied for schema public` | The account is a *standard* RDS account. Re-run as the instance's **privileged** account (`postgres`) — see step 1.1. Nothing is half-written when this happens: every statement fails, so the database is still empty and a plain re-run is safe |
+| Login page says **Username** / "Invalid username or password" after the email switch | The FE server is serving a stale SPA build. `git pull` on the FE server, rebuild `dist/` (step 6), restart the web container, then hard-refresh the browser |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |
 | Header dot stays **Offline** | `/ws` proxy block missing/misconfigured in nginx, or security group blocks the FE→BE connection |
 | `could not translate host name "-U" to address` | `RDS_HOST` is empty in this shell, so `-h` consumed the next flag — or you are on the **FE server**, which has no DB access. Run DB commands on the BE server. Re-export it, or use the `.env.staging` form shown in step 7 (`--env-file .env.staging` + `psql "${DATABASE_URL%%\?*}"`) |
