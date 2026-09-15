@@ -332,7 +332,12 @@ company branding (proves FE → BE → RDS path). Log in and confirm the header 
 
 ---
 
-## 7. Post-deployment hardening (do immediately)
+## 7. Post-deployment hardening (on the **BE server**, do immediately)
+
+> Every database command in this guide runs **on the BE server (172.28.92.57)** — it is the only
+> host in the ApsaraDB whitelist, and the only one with `.env.staging`. The FE server has no
+> database access by design.
+
 
 The Option-A dump carries your **local** convenience passwords
 (`Manager@2026!` / `ChangeMe123!`). Force everyone — including the manager — to set a
@@ -418,7 +423,7 @@ For data, use RDS point-in-time restore.
 | `permission denied to create extension "pg_trgm"` / `permission denied for schema public` | The account is a *standard* RDS account. Re-run as the instance's **privileged** account (`postgres`) — see step 1.1. Nothing is half-written when this happens: every statement fails, so the database is still empty and a plain re-run is safe |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |
 | Header dot stays **Offline** | `/ws` proxy block missing/misconfigured in nginx, or security group blocks the FE→BE connection |
-| `could not translate host name "-U" to address` | `RDS_HOST` is empty in this shell, so `-h` consumed the next flag. Re-export it, or use the `.env.staging` form shown in step 7 (`--env-file .env.staging` + `psql "${DATABASE_URL%%\?*}"`) |
+| `could not translate host name "-U" to address` | `RDS_HOST` is empty in this shell, so `-h` consumed the next flag — or you are on the **FE server**, which has no DB access. Run DB commands on the BE server. Re-export it, or use the `.env.staging` form shown in step 7 (`--env-file .env.staging` + `psql "${DATABASE_URL%%\?*}"`) |
 | `connection to server on socket "/var/run/postgresql/..." failed` | `RDS_HOST` was empty, so `-h` got nothing and the client fell back to a local socket inside the container. `export RDS_HOST=...` and `export PGPASSWORD=...` in the **same** shell session as the `docker run` — `-e VAR` only forwards a variable that is actually set on the host |
 | `pg_restore: could not open input file` | The dump was never uploaded to the server — do step **4A.1**. Docker creates an empty `/opt/industrial_pm/dump` when the host path does not exist, so the mount succeeds but the file is absent |
 | `pg_restore` errors about roles/ownership | Add `--no-owner --no-privileges` (already in the command above) |
