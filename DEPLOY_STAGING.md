@@ -310,11 +310,14 @@ curl -s http://172.28.92.57:4010/api/v1/workspace   # shows "KPN Downstream-Esti
 ```bash
 cd /opt/industrial_pm/frontend
 
-# the SPA must be built. Either build on the server:
-#   npm ci && npm run build
-# or ship your local build from the laptop:
-#   scp -r frontend/dist/* root@172.28.92.56:/opt/industrial_pm/frontend/dist/
-ls dist/index.html || echo "BUILD MISSING — build or upload dist/ first"
+# The SPA must be built: dist/ is git-ignored, so a clone never contains it.
+# Build it inside a container — no Node needed on the server:
+docker run --rm -v /opt/industrial_pm/frontend:/app -w /app node:20-bookworm-slim   sh -c "npm ci --no-audit --no-fund && npm run build"
+
+# (alternatives: `npm ci && npm run build` if Node is installed on the host, or ship your
+#  laptop build:  scp -r frontend/dist/* root@172.28.92.56:/opt/industrial_pm/frontend/dist/ )
+
+ls -la dist/index.html || echo "BUILD MISSING — build or upload dist/ first"
 
 docker compose -f docker-compose.staging.yml up -d
 
