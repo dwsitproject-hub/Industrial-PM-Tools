@@ -161,13 +161,13 @@ The dump is git-ignored, so it never arrives with `git clone` or the code tarbal
 copied by hand. Run this **on your laptop**, from the repo root:
 
 ```powershell
-ssh root@172.28.92.57 "mkdir -p /opt/industrial_pm-dump"
-scp deploy/industrial_pm-local-20260914.dump root@172.28.92.57:/opt/industrial_pm-dump/
+ssh root@172.28.92.57 "mkdir -p /opt/industrial_pm/dump"
+scp deploy/industrial_pm-local-20260914.dump root@172.28.92.57:/opt/industrial_pm/dump/
 ```
 
 > **If your laptop cannot reach `172.28.92.57` directly** (it is a private IP), use the
 > file-transfer / SFTP panel of the SSH client you already use for these servers
-> (FinalShell / WinSCP / Xshell) and drop the file into `/opt/industrial_pm-dump/`.
+> (FinalShell / WinSCP / Xshell) and drop the file into `/opt/industrial_pm/dump/`.
 > Last-resort fallback over a plain terminal — the dump is only ~110 KB:
 >
 > ```powershell
@@ -176,18 +176,18 @@ scp deploy/industrial_pm-local-20260914.dump root@172.28.92.57:/opt/industrial_p
 > ```
 > ```bash
 > # BE server: paste between the markers, then decode
-> mkdir -p /opt/industrial_pm-dump && cat > /tmp/dump.b64 <<'B64EOF'
+> mkdir -p /opt/industrial_pm/dump && cat > /tmp/dump.b64 <<'B64EOF'
 > <paste here>
 > B64EOF
-> base64 -d /tmp/dump.b64 > /opt/industrial_pm-dump/industrial_pm-local-20260914.dump
+> base64 -d /tmp/dump.b64 > /opt/industrial_pm/dump/industrial_pm-local-20260914.dump
 > ```
 
 **4A.2 — Confirm it landed** (on the BE server). Skipping 4A.1 does not fail loudly: Docker
-happily creates an *empty* `/opt/industrial_pm-dump` for the mount and `pg_restore` then reports
+happily creates an *empty* `/opt/industrial_pm/dump` for the mount and `pg_restore` then reports
 `could not open input file`.
 
 ```bash
-ls -la /opt/industrial_pm-dump/
+ls -la /opt/industrial_pm/dump/
 # expect: industrial_pm-local-20260914.dump   ~111676 bytes
 ```
 
@@ -197,7 +197,7 @@ ls -la /opt/industrial_pm-dump/
 export RDS_HOST=pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com
 export PGPASSWORD='<engpro_stg password>'
 
-docker run --rm -e PGPASSWORD -v /opt/industrial_pm-dump:/dump postgres:16-alpine \
+docker run --rm -e PGPASSWORD -v /opt/industrial_pm/dump:/dump postgres:16-alpine \
   pg_restore -h $RDS_HOST -U engpro_stg -d industrial_pm \
   --no-owner --no-privileges /dump/industrial_pm-local-20260914.dump
 
@@ -365,6 +365,6 @@ For data, use RDS point-in-time restore.
 | `permission denied to create extension` during migrate/restore | The RDS account is not a **privileged** account — recreate it as privileged |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |
 | Header dot stays **Offline** | `/ws` proxy block missing/misconfigured in nginx, or security group blocks the FE→BE connection |
-| `pg_restore: could not open input file` | The dump was never uploaded to the server — do step **4A.1**. Docker creates an empty `/opt/industrial_pm-dump` when the host path does not exist, so the mount succeeds but the file is absent |
+| `pg_restore: could not open input file` | The dump was never uploaded to the server — do step **4A.1**. Docker creates an empty `/opt/industrial_pm/dump` when the host path does not exist, so the mount succeeds but the file is absent |
 | `pg_restore` errors about roles/ownership | Add `--no-owner --no-privileges` (already in the command above) |
 | Port already allocated on `up -d` | Another stack took 3060/4010 since the check — pick a new free port in the compose file (and update the nginx `proxy_pass` / security group accordingly) |
