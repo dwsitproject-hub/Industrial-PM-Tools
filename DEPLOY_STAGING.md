@@ -197,9 +197,9 @@ ls -la /opt/industrial_pm/dump/
 export RDS_HOST=pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com
 export PGPASSWORD='<engpro_stg password>'
 
-docker run --rm -e PGPASSWORD -v /opt/industrial_pm/dump:/dump postgres:16-alpine \
-  pg_restore -h $RDS_HOST -U engpro_stg -d industrial_pm \
-  --no-owner --no-privileges /dump/industrial_pm-local-20260914.dump
+docker run --rm -e PGPASSWORD -e RDS_HOST -v /opt/industrial_pm/dump:/dump postgres:16-alpine \
+  sh -c 'pg_restore -h "$RDS_HOST" -U engpro_stg -d industrial_pm \
+          --no-owner --no-privileges /dump/industrial_pm-local-*.dump'
 
 # verify
 docker run --rm -e PGPASSWORD postgres:16-alpine \
