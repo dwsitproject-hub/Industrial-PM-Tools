@@ -66,6 +66,8 @@ schema, so both the restore and Prisma's migrations fail on it.
 > GRANT ALL ON SCHEMA public TO <app_account>;
 > GRANT ALL ON ALL TABLES    IN SCHEMA public TO <app_account>;
 > GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO <app_account>;
+> ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES    TO <app_account>;
+> ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO <app_account>;
 > ```
 
 **1.2 Create the database and verify extensions** — from the **BE server**:
@@ -286,6 +288,11 @@ curl -s http://172.28.92.57:4010/api/v1/ready       # {"status":"ready"} = DB co
 curl -s http://172.28.92.57:4010/api/v1/workspace   # shows "KPN Downstream-Estimation Control"
 ```
 
+> **The account in `DATABASE_URL` must be the same account that ran the restore** (step 4A.3),
+> otherwise it authenticates fine but owns nothing and the API fails with
+> `permission denied for table _prisma_migrations`. If you restored as `postgres`, the API must
+> connect as `postgres` too — or grant the app account rights first (step 1.1 hand-over block).
+
 `.env.staging` reference (template: `.env.staging.example`):
 
 | Variable | Staging value |
@@ -389,6 +396,7 @@ For data, use RDS point-in-time restore.
 | Symptom | Likely cause / fix |
 |---|---|
 | nginx returns **502** on `/api/*` | API container down (`docker ps` on BE) or FE→BE port 4010 blocked by the security group |
+| API logs `permission denied for table _prisma_migrations` | `DATABASE_URL` uses a different account than the one that restored the dump. Point it at the restore account (`postgres`), or grant the app account rights: `GRANT ALL ON SCHEMA public`, `GRANT ALL ON ALL TABLES/SEQUENCES IN SCHEMA public`, plus `ALTER DEFAULT PRIVILEGES` (step 1.1) |
 | API logs `P1013 ... invalid port number in database URL` | The password in `DATABASE_URL` contains a character that breaks URL parsing (usually `@`, also `#/:?&%+`). Percent-encode it (`@`=`%40`, `#`=`%23`, `/`=`%2F`, `:`=`%3A`). Check with `awk -F'@' '/^DATABASE_URL/{print NF-1" at-signs"}' .env.staging` — it must print `1 at-signs` |
 | API logs `P1001: Can't reach database server` | BE server IP missing from the RDS whitelist, or wrong host/password in `DATABASE_URL` |
 | `permission denied to create extension "pg_trgm"` / `permission denied for schema public` | The account is a *standard* RDS account. Re-run as the instance's **privileged** account (`postgres`) — see step 1.1. Nothing is half-written when this happens: every statement fails, so the database is still empty and a plain re-run is safe |
