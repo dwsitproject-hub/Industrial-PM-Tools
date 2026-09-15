@@ -339,11 +339,24 @@ The Option-A dump carries your **local** convenience passwords
 new password at first staging login, and drop any restored sessions:
 
 ```bash
-docker run --rm -e PGPASSWORD postgres:16-alpine \
-  psql -h $RDS_HOST -U postgres -d industrial_pm \
-  -c "UPDATE users SET must_change_password = true;" \
-  -c "TRUNCATE refresh_tokens;"
+cd /opt/industrial_pm/backend
+docker run --rm --env-file .env.staging postgres:16-alpine \
+  sh -c 'psql "${DATABASE_URL%%\?*}" \
+    -c "UPDATE users SET must_change_password = true;" \
+    -c "TRUNCATE refresh_tokens;"'
 ```
+
+> **Tip — query staging without exporting anything.** Once `.env.staging` exists, reuse it instead
+> of re-exporting `RDS_HOST`/`PGPASSWORD` in every new SSH session (forgetting them makes psql fail
+> with `could not translate host name "-U"`, because `-h` swallows the next flag). The expansion
+> `${DATABASE_URL%%\?*}` strips Prisma's `?connection_limit=…`, which libpq rejects — the
+> `\?` escape is required, or the expansion returns an empty string:
+>
+> ```bash
+> cd /opt/industrial_pm/backend
+> docker run --rm --env-file .env.staging postgres:16-alpine \
+>   sh -c 'psql "${DATABASE_URL%%\?*}" -c "SELECT count(*) FROM tickets;"'
+> ```
 
 At first login each user enters their old (local) password once and is forced to choose a
 new one (min 10 chars). Afterwards, manage credentials only via *Settings → Users → Reset
@@ -405,6 +418,7 @@ For data, use RDS point-in-time restore.
 | `permission denied to create extension "pg_trgm"` / `permission denied for schema public` | The account is a *standard* RDS account. Re-run as the instance's **privileged** account (`postgres`) — see step 1.1. Nothing is half-written when this happens: every statement fails, so the database is still empty and a plain re-run is safe |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |
 | Header dot stays **Offline** | `/ws` proxy block missing/misconfigured in nginx, or security group blocks the FE→BE connection |
+| `could not translate host name "-U" to address` | `RDS_HOST` is empty in this shell, so `-h` consumed the next flag. Re-export it, or use the `.env.staging` form shown in step 7 (`--env-file .env.staging` + `psql "${DATABASE_URL%%\?*}"`) |
 | `connection to server on socket "/var/run/postgresql/..." failed` | `RDS_HOST` was empty, so `-h` got nothing and the client fell back to a local socket inside the container. `export RDS_HOST=...` and `export PGPASSWORD=...` in the **same** shell session as the `docker run` — `-e VAR` only forwards a variable that is actually set on the host |
 | `pg_restore: could not open input file` | The dump was never uploaded to the server — do step **4A.1**. Docker creates an empty `/opt/industrial_pm/dump` when the host path does not exist, so the mount succeeds but the file is absent |
 | `pg_restore` errors about roles/ownership | Add `--no-owner --no-privileges` (already in the command above) |
