@@ -132,7 +132,7 @@ model User {
   workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   username           String
   fullName           String    @map("full_name")
-  email              String?
+  email              String    @unique
   passwordHash       String    @map("password_hash")
   role               UserRole
   siteId             String?   @map("site_id") @db.Uuid

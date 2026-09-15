@@ -251,7 +251,7 @@ function UsersTab() {
               {!u.isActive && <span className="fs11 c-red"> · inactive</span>}
               {u.mustChangePassword && <span className="fs11" style={{ color: '#854F0B' }}> · temp password</span>}
             </div>
-            <div className="fs11 c-hint mono">{u.username}{u.email ? ` · ${u.email}` : ''}</div>
+            <div className="fs11 c-hint mono">{u.email}</div>
           </div>
           <button className="btn btn-outline btn-xs" onClick={() => setModal({ mode: 'edit', user: u })}>Edit</button>
           <button className="btn btn-outline btn-xs" onClick={() => resetPw.mutate(u.id)}>Reset password</button>
@@ -292,17 +292,17 @@ function UsersTab() {
 function UserModal({ existing, onClose, onSaved }: any) {
   const { toast } = useToast();
   const [f, setF] = useState<any>(existing
-    ? { username: existing.username, fullName: existing.fullName, email: existing.email || '', role: existing.role, siteId: existing.site?.id || existing.siteId || '', avatarColor: existing.avatarColor, isActive: existing.isActive }
-    : { username: '', fullName: '', email: '', role: 'ESTIMATOR', siteId: '', avatarColor: 0, isActive: true });
+    ? { fullName: existing.fullName, email: existing.email || '', role: existing.role, siteId: existing.site?.id || existing.siteId || '', avatarColor: existing.avatarColor, isActive: existing.isActive }
+    : { fullName: '', email: '', role: 'ESTIMATOR', siteId: '', avatarColor: 0, isActive: true });
   const { data: sites } = useQuery({ queryKey: ['sites'], queryFn: () => api.get('/api/v1/sites') });
   const save = useMutation({
     mutationFn: () => existing
       ? api.patch(`/api/v1/users/${existing.id}`, {
-          fullName: f.fullName, email: f.email || undefined, role: f.role,
+          fullName: f.fullName, email: f.email.trim() || undefined, role: f.role,
           siteId: f.role === 'SITE_ADMIN' ? f.siteId : undefined, avatarColor: f.avatarColor, isActive: f.isActive,
         })
       : api.post('/api/v1/users', {
-          username: f.username.trim(), fullName: f.fullName, email: f.email || undefined, role: f.role,
+          email: f.email.trim(), fullName: f.fullName, role: f.role,
           siteId: f.role === 'SITE_ADMIN' ? f.siteId : undefined, avatarColor: f.avatarColor,
         }),
     onSuccess: (res: any) => onSaved(res.tempPassword ? { name: res.fullName, pw: res.tempPassword } : undefined),
@@ -310,14 +310,11 @@ function UserModal({ existing, onClose, onSaved }: any) {
   });
   return (
     <Modal title={existing ? `Edit ${existing.fullName}` : 'Add user'} onClose={onClose}>
-      {!existing && (
-        <div className="field"><label>Username (login)</label>
-          <input value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} placeholder="e.g. andi" /></div>
-      )}
+      <div className="field"><label>Email (used to sign in)</label>
+        <input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })}
+          placeholder="name@company.com" autoFocus={!existing} /></div>
       <div className="field"><label>Full name</label>
         <input value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></div>
-      <div className="field"><label>Email (optional)</label>
-        <input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
       <div className="field"><label>Role</label>
         <select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
           <option value="ESTIMATOR">Estimator — works assigned tickets</option>
@@ -340,7 +337,7 @@ function UserModal({ existing, onClose, onSaved }: any) {
           ))}
         </div></div>
       <button className="btn btn-primary btn-full mt8" onClick={() => save.mutate()}
-        disabled={save.isPending || !f.fullName || (!existing && f.username.trim().length < 3) || (f.role === 'SITE_ADMIN' && !f.siteId)}>
+        disabled={save.isPending || !f.fullName || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim()) || (f.role === 'SITE_ADMIN' && !f.siteId)}>
         {existing ? 'Save changes' : 'Create user & generate password'}
       </button>
     </Modal>

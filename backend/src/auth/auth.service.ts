@@ -53,12 +53,12 @@ export class AuthService {
     return raw;
   }
 
-  async login(username: string, password: string, ip?: string, userAgent?: string) {
+  async login(email: string, password: string, ip?: string, userAgent?: string) {
     const user = await this.prisma.user.findFirst({
-      where: { username: (username || '').toLowerCase(), isActive: true, deletedAt: null },
+      where: { email: (email || '').trim().toLowerCase(), isActive: true, deletedAt: null },
       include: { workspace: true },
     });
-    const invalid = new UnauthorizedException('Invalid username or password');
+    const invalid = new UnauthorizedException('Invalid email or password');
     if (!user) throw invalid;
     const ok = await argon2.verify(user.passwordHash, password || '').catch(() => false);
     if (!ok) {
@@ -155,7 +155,7 @@ export class AuthService {
   profile(user: any) {
     return {
       user: {
-        id: user.id, username: user.username, fullName: user.fullName, role: user.role,
+        id: user.id, username: user.username, email: user.email, fullName: user.fullName, role: user.role,
         siteId: user.siteId ?? null, siteName: user.site?.name ?? null,
         avatarColor: user.avatarColor, mustChangePassword: user.mustChangePassword,
       },

@@ -17,6 +17,10 @@ const PROD_WS = '73e3be57-c404-4463-b336-8d429e022477';
 const LEGACY_DIR = process.env.LEGACY_DIR || path.join(__dirname, '..', '..', 'db');
 const MANAGER_PASSWORD = process.env.SEED_MANAGER_PASSWORD || 'Manager@2026!';
 const MEMBER_PASSWORD = process.env.SEED_MEMBER_PASSWORD || 'ChangeMe123!';
+// Login is by email; the legacy export has none, so synthesise one per account.
+// Override with SEED_EMAIL_DOMAIN=yourcompany.com to generate real-looking addresses.
+const EMAIL_DOMAIN = process.env.SEED_EMAIL_DOMAIN || 'engpro.local';
+const emailFor = (username: string) => `${username.toLowerCase()}@${EMAIL_DOMAIN}`;
 
 const prisma = new PrismaClient();
 
@@ -96,7 +100,8 @@ async function main() {
 
   const manager = await prisma.user.create({
     data: {
-      workspaceId: PROD_WS, username: 'manager', fullName: 'Estimation Manager',
+      workspaceId: PROD_WS, username: 'manager', email: emailFor('manager'),
+      fullName: 'Estimation Manager',
       role: 'MANAGER', passwordHash: managerHash, avatarColor: 0, mustChangePassword: false,
     },
   });
@@ -108,6 +113,7 @@ async function main() {
       data: {
         id: m.id, workspaceId: PROD_WS,
         username: m.name.toLowerCase().replace(/\s+/g, '_'),
+        email: emailFor(m.name.replace(/\s+/g, '_')),
         fullName: m.name, role: role as any,
         avatarColor: parseInt(m.color, 10) || 0,
         passwordHash: memberHash, mustChangePassword: false,
@@ -131,6 +137,7 @@ async function main() {
     const su = await prisma.user.create({
       data: {
         workspaceId: PROD_WS, username: `site.${slug(s.site_name)}`,
+        email: emailFor(`site.${slug(s.site_name)}`),
         fullName: `${s.site_name} Site Admin`, role: 'SITE_ADMIN', siteId: site.id,
         avatarColor: parseInt(s.color, 10) || 3,
         passwordHash: memberHash, mustChangePassword: false,
@@ -293,7 +300,8 @@ async function main() {
     'old_no,new_no,name\n' + renumbered.map((r) => `${r.from},${r.to},"${r.name.replace(/"/g, '""')}"`).join('\n'),
   );
   console.log('report     : prisma/renumbered_tickets_report.csv');
-  console.log(`logins     : manager / ${MANAGER_PASSWORD}  ·  members e.g. rully, sajali, site.dumai / ${MEMBER_PASSWORD}`);
+  console.log(`logins     : ${emailFor('manager')} / ${MANAGER_PASSWORD}`);
+  console.log(`             members e.g. ${emailFor('rully')}, ${emailFor('site.dumai')} / ${MEMBER_PASSWORD}`);
 
   const pass = counts.users === expected.users && counts.sites === expected.sites
     && counts.tickets === expected.tickets && counts.notes === expected.notes

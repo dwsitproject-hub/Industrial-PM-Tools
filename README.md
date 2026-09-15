@@ -32,12 +32,16 @@ DATABASE_URL=postgresql://engpro:engpro@localhost:5440/industrial_pm npx ts-node
 
 Open **http://localhost:8090**
 
-| Account | Username | Password (local seed) |
+**Sign-in is by email address.** The legacy export carried no emails, so the ETL synthesises
+`<username>@engpro.local` — set `SEED_EMAIL_DOMAIN=yourcompany.com` to generate real-looking
+addresses, and managers can correct any address in *Settings → Users*.
+
+| Account | Email (local seed) | Password |
 |---|---|---|
-| Manager | `manager` | `Manager@2026!` |
-| Estimators | `rully`, `sajali`, `wahyu`, `yohana`, `danu`, `luqman`, `halomoan`, `sumiardi` | `ChangeMe123!` |
-| Office admins | `seila`, `faktul`, `sumiardi_mgr`, `rull_y` | `ChangeMe123!` |
-| Site admins | `site.dumai`, `site.medan`, `site.bontang`, … | `ChangeMe123!` |
+| Manager | `manager@engpro.local` | `Manager@2026!` |
+| Estimators | `rully@engpro.local`, `sajali@engpro.local`, `wahyu@engpro.local`, … | `ChangeMe123!` |
+| Office admins | `seila@engpro.local`, `faktul@engpro.local`, … | `ChangeMe123!` |
+| Site admins | `site.dumai@engpro.local`, `site.medan@engpro.local`, … | `ChangeMe123!` |
 
 > Local convenience only: seeded users skip the forced password change. For a real
 > cutover set SEED_* env vars and enable `must_change_password` in the seed.

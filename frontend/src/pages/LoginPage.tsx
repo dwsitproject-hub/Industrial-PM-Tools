@@ -5,7 +5,7 @@ import { useAuth } from '../auth';
 
 export default function LoginPage() {
   const { login, changePassword, logout, profile } = useAuth();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,11 +24,12 @@ export default function LoginPage() {
     e.preventDefault();
     setError(''); setBusy(true);
     try {
-      const p = await login(username.trim(), password);
+      const p = await login(email.trim(), password);
       if (p.user.mustChangePassword) setMustChange(true);
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute and try again.');
-      else setError('Invalid username or password.');
+      else if (err instanceof ApiError && err.status === 400) setError('Enter a valid email address.');
+      else setError('Invalid email or password.');
     } finally {
       setBusy(false);
     }
@@ -61,17 +62,18 @@ export default function LoginPage() {
         {!mustChange ? (
           <form onSubmit={submit}>
             <div className="auth-title">Sign in</div>
-            <div className="auth-sub">Use your personal EngPro account.</div>
+            <div className="auth-sub">Sign in with your work email address.</div>
             <div className="field">
-              <label>Username</label>
-              <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoComplete="username" />
+              <label>Email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                autoFocus autoComplete="email" placeholder="you@company.com" />
             </div>
             <div className="field">
               <label>Password</label>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
             </div>
             {error && <div className="field-hint c-red mb8">{error}</div>}
-            <button className="btn btn-primary btn-full" disabled={busy || !username || !password}>
+            <button className="btn btn-primary btn-full" disabled={busy || !email || !password}>
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
           </form>

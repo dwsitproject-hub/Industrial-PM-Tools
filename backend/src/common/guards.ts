@@ -88,10 +88,10 @@ export class PermGuard implements CanActivate {
   }
 }
 
-/** Login throttle keyed by IP + username so one hammered account cannot lock out the office IP. */
+/** Login throttle keyed by IP + email so one hammered account cannot lock out the office IP. */
 @Injectable()
 export class LoginThrottlerGuard extends ThrottlerGuard {
   protected async getTracker(req: Record<string, any>): Promise<string> {
-    return `${req.ip}:${(req.body?.username || '').toLowerCase()}`;
+    return `${req.ip}:${(req.body?.email || '').toLowerCase()}`;
   }
 }

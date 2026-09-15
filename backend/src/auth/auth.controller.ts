@@ -2,14 +2,16 @@ import {
   Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { Request, Response } from 'express';
 import { AllowWhenMustChangePassword, CurrentUser, JwtUser, Public } from '../common/auth.types';
 import { LoginThrottlerGuard } from '../common/guards';
 import { AuthService } from './auth.service';
 
 class LoginDto {
-  @IsString() @MinLength(1) @MaxLength(64) username!: string;
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  @IsEmail({}, { message: 'A valid email address is required' }) @MaxLength(200) email!: string;
   @IsString() @MinLength(1) @MaxLength(128) password!: string;
 }
 class ChangePasswordDto {
@@ -41,7 +43,7 @@ export class AuthController {
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { accessToken, refreshToken, user } = await this.auth.login(
-      dto.username, dto.password, req.ip, req.headers['user-agent'],
+      dto.email, dto.password, req.ip, req.headers['user-agent'],
     );
     setRefreshCookie(res, refreshToken);
     const full = await this.auth.me(user.id);

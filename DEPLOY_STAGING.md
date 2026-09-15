@@ -367,6 +367,19 @@ At first login each user enters their old (local) password once and is forced to
 new one (min 10 chars). Afterwards, manage credentials only via *Settings → Users → Reset
 password*.
 
+**Sign-in uses the email address, not a username.** The legacy data had no emails, so the
+migration backfills `<username>@engpro.local` (e.g. `manager@engpro.local`,
+`rully@engpro.local`, `site.dumai@engpro.local`). Replace them with real addresses — either in
+*Settings → Users*, or in bulk:
+
+```bash
+cd /opt/industrial_pm/backend
+docker run --rm --env-file .env.staging postgres:16-alpine   sh -c 'psql "${DATABASE_URL%%\?*}" -c     "UPDATE users SET email = replace(email, '"'"'@engpro.local'"'"', '"'"'@yourcompany.com'"'"');"'
+
+# list who can sign in and with which address
+docker run --rm --env-file .env.staging postgres:16-alpine   sh -c 'psql "${DATABASE_URL%%\?*}" -c "SELECT full_name, email, role FROM users ORDER BY role, full_name;"'
+```
+
 Also confirm:
 - [ ] BE port 4010 is **not** reachable from outside the FE server (`curl 172.28.92.57:4010` from your laptop should fail).
 - [ ] RDS automated backups are enabled (console → *Backup and Restore*) — this is the staging backup story.
@@ -378,12 +391,12 @@ Also confirm:
 
 | # | As | Do | Expect |
 |---|---|---|---|
-| 1 | manager | Log in → forced password change → Dashboard | Real totals (≈226 tickets), workload cards |
+| 1 | manager (`manager@engpro.local`) | Log in → forced password change → Dashboard | Real totals (≈226 tickets), workload cards |
 | 2 | manager | Create a ticket | Number continues the series (no duplicates) |
 | 3 | manager | Board: drag the new ticket to Done (assigned) | KPI toast; entry visible in KPI tab |
 | 4 | manager | Settings → Roles | 4 role chips, Manager locked, matrix renders |
-| 5 | estimator (e.g. `rully`) | My tickets / Team board / My KPI | Own queue, overdue banner, personal ledger |
-| 6 | site admin (e.g. `site.dumai`) | My site tickets → open one → move deadline | Only own site visible; deadline saves |
+| 5 | estimator (e.g. `rully@engpro.local`) | My tickets / Team board / My KPI | Own queue, overdue banner, personal ledger |
+| 6 | site admin (e.g. `site.dumai@engpro.local`) | My site tickets → open one → move deadline | Only own site visible; deadline saves |
 | 7 | two browsers | Change a ticket in one | Other updates within ~1 s (websocket) |
 | 8 | manager | Settings → Audit trail | Login + ticket entries recorded |
 

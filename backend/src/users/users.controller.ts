@@ -3,24 +3,28 @@ import {
   Param, Patch, Post, Query, Req,
 } from '@nestjs/common';
 import {
-  IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength,
+  IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { Request } from 'express';
 import { CurrentUser, JwtUser, RequirePerm } from '../common/auth.types';
 import { UsersService } from './users.service';
 
 class CreateUserDto {
-  @IsString() @Matches(/^[a-z0-9._-]{3,32}$/i, { message: 'username must be 3-32 chars: letters, digits, . _ -' })
-  username!: string;
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  @IsEmail({}, { message: 'A valid email address is required' }) @MaxLength(200) email!: string;
   @IsString() @MinLength(2) @MaxLength(120) fullName!: string;
-  @IsOptional() @IsString() @MaxLength(200) email?: string;
+  /** optional: derived from the email local-part when omitted (legacy identifier, not used to log in) */
+  @IsOptional() @IsString() @Matches(/^[a-z0-9._-]{3,32}$/i, { message: 'username must be 3-32 chars: letters, digits, . _ -' })
+  username?: string;
   @IsIn(['MANAGER', 'ADMIN', 'SITE_ADMIN', 'ESTIMATOR']) role!: string;
   @IsOptional() @IsUUID() siteId?: string;
   @IsOptional() @IsInt() @Min(0) @Max(8) avatarColor?: number;
 }
 class UpdateUserDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(120) fullName?: string;
-  @IsOptional() @IsString() @MaxLength(200) email?: string;
+  @IsOptional() @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  @IsEmail({}, { message: 'A valid email address is required' }) @MaxLength(200) email?: string;
   @IsOptional() @IsIn(['MANAGER', 'ADMIN', 'SITE_ADMIN', 'ESTIMATOR']) role?: string;
   @IsOptional() @IsUUID() siteId?: string;
   @IsOptional() @IsInt() @Min(0) @Max(8) avatarColor?: number;

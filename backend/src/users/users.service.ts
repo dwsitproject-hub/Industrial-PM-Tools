@@ -44,8 +44,23 @@ export class UsersService {
     });
   }
 
+  /** Usernames are a legacy identifier only (login is by email); derive one that is free. */
+  private async deriveUsername(workspaceId: string, email: string, wanted?: string): Promise<string> {
+    const base = (wanted || email.split('@')[0] || 'user')
+      .toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 24) || 'user';
+    for (let i = 0; i < 50; i++) {
+      const candidate = i === 0 ? base : `${base}${i + 1}`;
+      const clash = await this.prisma.user.findFirst({
+        where: { workspaceId, username: candidate }, select: { id: true },
+      });
+      if (!clash) return candidate;
+    }
+    return `${base}-${Date.now().toString(36)}`;
+  }
+
   async create(actor: JwtUser, dto: any, ip?: string) {
-    const username = dto.username.toLowerCase();
+    const email = String(dto.email).trim().toLowerCase();
+    const username = await this.deriveUsername(actor.ws, email, dto.username);
     const tempPassword = generateTempPassword();
     const passwordHash = await this.auth.hashPassword(tempPassword);
     try {
@@ -54,7 +69,7 @@ export class UsersService {
           workspaceId: actor.ws,
           username,
           fullName: dto.fullName,
-          email: dto.email || null,
+          email,
           role: dto.role,
           siteId: dto.role === 'SITE_ADMIN' ? dto.siteId : dto.siteId ?? null,
           avatarColor: dto.avatarColor ?? 0,
@@ -70,7 +85,14 @@ export class UsersService {
       this.events.emitWorkspace(actor.ws, 'user.updated', { id: created.id, workspaceId: actor.ws });
       return { ...created, tempPassword };
     } catch (e: any) {
-      if (e.code === 'P2002') throw new ConflictException('Username already exists in this workspace');
+      if (e.code === 'P2002') {
+        const target = String((e.meta?.target ?? '')).toLowerCase();
+        throw new ConflictException(
+          target.includes('email')
+            ? 'That email address is already registered'
+            : 'Username already exists in this workspace',
+        );
+      }
       throw e;
     }
   }
@@ -84,14 +106,22 @@ export class UsersService {
     if (dto.role === 'SITE_ADMIN' && !(dto.siteId ?? existing.siteId)) {
       throw new BadRequestException('siteId is required for SITE_ADMIN users');
     }
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: {
-        fullName: dto.fullName, email: dto.email, role: dto.role,
-        siteId: dto.siteId, avatarColor: dto.avatarColor, isActive: dto.isActive,
-      },
-      select: { ...PUBLIC_SELECT, email: true, mustChangePassword: true },
-    });
+    let updated;
+    try {
+      updated = await this.prisma.user.update({
+        where: { id },
+        data: {
+          fullName: dto.fullName,
+          email: dto.email ? String(dto.email).trim().toLowerCase() : undefined,
+          role: dto.role,
+          siteId: dto.siteId, avatarColor: dto.avatarColor, isActive: dto.isActive,
+        },
+        select: { ...PUBLIC_SELECT, email: true, mustChangePassword: true },
+      });
+    } catch (e: any) {
+      if (e.code === 'P2002') throw new ConflictException('That email address is already registered');
+      throw e;
+    }
     if (dto.isActive === false) {
       await this.auth.revokeAllForUser(id);
       this.events.emitUser(id, 'user.updated', { id, deactivated: true });

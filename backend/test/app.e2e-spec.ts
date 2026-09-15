@@ -20,8 +20,10 @@ function iso(offsetDays: number): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 }
 
+const mail = (username: string) => `${username}@test.local`;
+
 async function login(username: string): Promise<string> {
-  const res = await request(http).post('/api/v1/auth/login').send({ username, password: PW });
+  const res = await request(http).post('/api/v1/auth/login').send({ email: mail(username), password: PW });
   expect(res.status).toBe(200);
   return res.body.accessToken;
 }
@@ -54,7 +56,8 @@ beforeAll(async () => {
   siteB = await prisma.site.create({ data: { workspaceId: ws.id, name: 'Site B' } });
   const mk = (username: string, role: string, extra: any = {}) => prisma.user.create({
     data: {
-      workspaceId: ws.id, username, fullName: username.toUpperCase(), role: role as any,
+      workspaceId: ws.id, username, email: mail(username),
+      fullName: username.toUpperCase(), role: role as any,
       passwordHash: hash, mustChangePassword: false, ...extra,
     },
   });
@@ -114,7 +117,7 @@ describe('F1 health & bootstrap', () => {
 
 describe('F3 authentication & sessions', () => {
   it('valid login returns access token, profile and refresh cookie', async () => {
-    const res = await request(http).post('/api/v1/auth/login').send({ username: 'alice', password: PW });
+    const res = await request(http).post('/api/v1/auth/login').send({ email: mail('alice'), password: PW });
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBeTruthy();
     expect(res.body.user.role).toBe('ESTIMATOR');
@@ -124,15 +127,15 @@ describe('F3 authentication & sessions', () => {
     expect(cookie).toContain('HttpOnly');
   });
   it('wrong password and unknown user return the same uniform 401', async () => {
-    const bad = await request(http).post('/api/v1/auth/login').send({ username: 'alice', password: 'nope-nope' });
-    const ghost = await request(http).post('/api/v1/auth/login').send({ username: 'ghost', password: 'nope-nope' });
+    const bad = await request(http).post('/api/v1/auth/login').send({ email: mail('alice'), password: 'nope-nope' });
+    const ghost = await request(http).post('/api/v1/auth/login').send({ email: mail('ghost'), password: 'nope-nope' });
     expect(bad.status).toBe(401);
     expect(ghost.status).toBe(401);
     expect(bad.body.message).toBe(ghost.body.message);
   });
   it('refresh rotates the token; replaying the old one revokes the family', async () => {
     const agent = request.agent(http);
-    const loginRes = await agent.post('/api/v1/auth/login').send({ username: 'bob', password: PW });
+    const loginRes = await agent.post('/api/v1/auth/login').send({ email: mail('bob'), password: PW });
     const oldCookie = loginRes.headers['set-cookie'][0].split(';')[0];
     // rotate
     const r1 = await agent.post('/api/v1/auth/refresh');
@@ -148,7 +151,7 @@ describe('F3 authentication & sessions', () => {
   });
   it('logout revokes the refresh token', async () => {
     const agent = request.agent(http);
-    const loginRes = await agent.post('/api/v1/auth/login').send({ username: 'bob', password: PW });
+    const loginRes = await agent.post('/api/v1/auth/login').send({ email: mail('bob'), password: PW });
     const token = loginRes.body.accessToken;
     await agent.post('/api/v1/auth/logout').set(auth(token)).expect(200);
     const r = await agent.post('/api/v1/auth/refresh');
@@ -158,11 +161,26 @@ describe('F3 authentication & sessions', () => {
     let last = 0;
     for (let i = 0; i < 31; i++) {
       const res = await request(http).post('/api/v1/auth/login')
-        .send({ username: 'throttle-target', password: 'wrong-wrong' });
+        .send({ email: mail('throttle-target'), password: 'wrong-wrong' });
       last = res.status;
       if (last === 429) break;
     }
     expect(last).toBe(429);
+  });
+  it('email login is case- and whitespace-insensitive', async () => {
+    const res = await request(http).post('/api/v1/auth/login')
+      .send({ email: '  ALICE@Test.Local  ', password: PW });
+    expect(res.status).toBe(200);
+    expect(res.body.user.email).toBe('alice@test.local');
+  });
+  it('a malformed email is rejected as a validation error, not a credential check', async () => {
+    const res = await request(http).post('/api/v1/auth/login')
+      .send({ email: 'not-an-email', password: PW });
+    expect(res.status).toBe(400);
+  });
+  it('the old username is no longer accepted as a login identifier', async () => {
+    const res = await request(http).post('/api/v1/auth/login').send({ username: 'alice', password: PW });
+    expect(res.status).toBe(400);
   });
   it('GET /auth/me returns the profile', async () => {
     const res = await request(http).get('/api/v1/auth/me').set(auth(tokens.saA));
@@ -177,28 +195,52 @@ describe('F16 user administration + forced password change', () => {
   let tempPassword = '';
   it('manager creates a user and receives the temp password exactly once', async () => {
     const res = await request(http).post('/api/v1/users').set(auth(tokens.manager)).send({
-      username: 'charlie', fullName: 'Charlie New', role: 'ESTIMATOR', avatarColor: 2,
+      email: 'charlie@test.local', fullName: 'Charlie New', role: 'ESTIMATOR', avatarColor: 2,
     });
     expect(res.status).toBe(201);
     expect(res.body.tempPassword).toHaveLength(12);
     newUserId = res.body.id;
     tempPassword = res.body.tempPassword;
   });
-  it('duplicate username is rejected with 409', async () => {
+  it('duplicate email is rejected with 409', async () => {
     const res = await request(http).post('/api/v1/users').set(auth(tokens.manager)).send({
-      username: 'charlie', fullName: 'Charlie Dupe', role: 'ESTIMATOR',
+      email: 'charlie@test.local', fullName: 'Charlie Dupe', role: 'ESTIMATOR',
     });
+    expect(res.status).toBe(409);
+  });
+  it('a created user logs in with their email, and username is derived from it', async () => {
+    const res = await request(http).post('/api/v1/users').set(auth(tokens.manager)).send({
+      email: 'Dana.Lee@Test.Local', fullName: 'Dana Lee', role: 'ESTIMATOR',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.email).toBe('dana.lee@test.local');   // normalised
+    expect(res.body.username).toBe('dana.lee');           // derived from the local-part
+    const loginRes = await request(http).post('/api/v1/auth/login')
+      .send({ email: 'dana.lee@test.local', password: res.body.tempPassword });
+    expect(loginRes.status).toBe(200);
+  });
+  it('creating a user without a valid email is rejected', async () => {
+    const noEmail = await request(http).post('/api/v1/users').set(auth(tokens.manager))
+      .send({ fullName: 'No Email', role: 'ESTIMATOR' });
+    expect(noEmail.status).toBe(400);
+    const badEmail = await request(http).post('/api/v1/users').set(auth(tokens.manager))
+      .send({ email: 'nope', fullName: 'Bad Email', role: 'ESTIMATOR' });
+    expect(badEmail.status).toBe(400);
+  });
+  it('changing a user email to one already in use returns 409', async () => {
+    const res = await request(http).patch(`/api/v1/users/${est2.id}`).set(auth(tokens.manager))
+      .send({ email: mail('alice') });
     expect(res.status).toBe(409);
   });
   it('non-manager cannot create users', async () => {
     const res = await request(http).post('/api/v1/users').set(auth(tokens.admin)).send({
-      username: 'mallory', fullName: 'Mallory', role: 'ESTIMATOR',
+      email: 'mallory@test.local', fullName: 'Mallory', role: 'ESTIMATOR',
     });
     expect(res.status).toBe(403);
   });
   it('temp-password login is forced through change-password before any other call', async () => {
     const loginRes = await request(http).post('/api/v1/auth/login')
-      .send({ username: 'charlie', password: tempPassword });
+      .send({ email: mail('charlie'), password: tempPassword });
     expect(loginRes.status).toBe(200);
     const t = loginRes.body.accessToken;
     const blocked = await request(http).get('/api/v1/tickets').set(auth(t));
@@ -221,7 +263,7 @@ describe('F16 user administration + forced password change', () => {
     expect(res.status).toBe(200);
     expect(res.body.tempPassword).toHaveLength(12);
     const relog = await request(http).post('/api/v1/auth/login')
-      .send({ username: 'charlie', password: res.body.tempPassword });
+      .send({ email: mail('charlie'), password: res.body.tempPassword });
     expect(relog.status).toBe(200);
   });
   it('deactivated users cannot log in; manager cannot deactivate self', async () => {
@@ -230,7 +272,7 @@ describe('F16 user administration + forced password change', () => {
     const res = await request(http).delete(`/api/v1/users/${newUserId}`).set(auth(tokens.manager));
     expect(res.status).toBe(200);
     const relog = await request(http).post('/api/v1/auth/login')
-      .send({ username: 'charlie', password: 'Charlie#2026ok' });
+      .send({ email: mail('charlie'), password: 'Charlie#2026ok' });
     expect(relog.status).toBe(401);
   });
   it('estimators get a directory, not the full admin view', async () => {

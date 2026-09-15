@@ -3,7 +3,7 @@ import { api, setAccessToken, setSessionLostHandler, tryRefresh } from './api';
 
 export interface Profile {
   user: {
-    id: string; username: string; fullName: string;
+    id: string; username: string; email: string; fullName: string;
     role: 'MANAGER' | 'ADMIN' | 'SITE_ADMIN' | 'ESTIMATOR';
     siteId: string | null; siteName: string | null;
     avatarColor: number; mustChangePassword: boolean;
@@ -23,7 +23,7 @@ interface AuthCtx {
   profile: Profile | null;
   perms: Perms | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<Profile>;
+  login: (email: string, password: string) => Promise<Profile>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -62,8 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await api.post<any>('/api/v1/auth/login', { username, password });
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await api.post<any>('/api/v1/auth/login', { email, password });
     setAccessToken(res.accessToken);
     const p: Profile = { user: res.user, workspace: res.workspace };
     if (!res.user.mustChangePassword) setPerms(await api.get<Perms>('/api/v1/roles/me'));
