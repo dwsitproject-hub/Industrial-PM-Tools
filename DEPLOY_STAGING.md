@@ -51,25 +51,39 @@ Repository: `git@github.com:dwsitproject-hub/Industrial-PM-Tools.git`
 ## 1. Prepare ApsaraDB
 
 **1.1 Create the account** (console → instance → *Accounts → Create Account*):
-- Account name: `engpro_stg`, type: **Privileged account** (needed for `CREATE EXTENSION` and `CREATE DATABASE`).
-- Strong password → note it for `.env.staging`.
+Use the instance's **privileged account** — on this instance that is **`postgres`**.
+A *standard* account cannot `CREATE EXTENSION` and cannot create objects in the `public`
+schema, so both the restore and Prisma's migrations fail on it.
+
+- If the privileged account already exists, just note/reset its password in the console.
+- If not: console → instance → *Accounts → Create Account → Account Type: **Privileged Account***.
+- Note the password → it goes in `.env.staging`.
+
+> Staging uses this one account for both the restore and the API. If you prefer the API to run
+> as a lower-privileged account later, create it and hand over ownership:
+> ```sql
+> ALTER DATABASE industrial_pm OWNER TO <app_account>;
+> GRANT ALL ON SCHEMA public TO <app_account>;
+> GRANT ALL ON ALL TABLES    IN SCHEMA public TO <app_account>;
+> GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO <app_account>;
+> ```
 
 **1.2 Create the database and verify extensions** — from the **BE server**:
 
 ```bash
 export RDS_HOST=pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com
-export PGPASSWORD='<engpro_stg password>'
+export PGPASSWORD='<postgres account password>'
 # fail loudly if these are not set in THIS shell (a new SSH session loses them):
 : "${RDS_HOST:?export RDS_HOST first}" ; : "${PGPASSWORD:?export PGPASSWORD first}"
 
 # connectivity + create database
 docker run --rm -e PGPASSWORD postgres:16-alpine \
-  psql -h $RDS_HOST -U engpro_stg -d postgres \
+  psql -h $RDS_HOST -U postgres -d postgres \
   -c "CREATE DATABASE industrial_pm;"
 
 # both required extensions must be available (they are standard on ApsaraDB PG)
 docker run --rm -e PGPASSWORD postgres:16-alpine \
-  psql -h $RDS_HOST -U engpro_stg -d industrial_pm \
+  psql -h $RDS_HOST -U postgres -d industrial_pm \
   -c "SELECT name, default_version FROM pg_available_extensions WHERE name IN ('pg_trgm','pgcrypto');"
 ```
 
@@ -197,17 +211,17 @@ ls -la /opt/industrial_pm/dump/
 
 ```bash
 export RDS_HOST=pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com
-export PGPASSWORD='<engpro_stg password>'
+export PGPASSWORD='<postgres account password>'
 # fail loudly if these are not set in THIS shell (a new SSH session loses them):
 : "${RDS_HOST:?export RDS_HOST first}" ; : "${PGPASSWORD:?export PGPASSWORD first}"
 
 docker run --rm -e PGPASSWORD -e RDS_HOST -v /opt/industrial_pm/dump:/dump postgres:16-alpine \
-  sh -c 'pg_restore -h "$RDS_HOST" -U engpro_stg -d industrial_pm \
+  sh -c 'pg_restore -h "$RDS_HOST" -U postgres -d industrial_pm \
           --no-owner --no-privileges /dump/industrial_pm-local-*.dump'
 
 # verify
 docker run --rm -e PGPASSWORD postgres:16-alpine \
-  psql -h $RDS_HOST -U engpro_stg -d industrial_pm -c \
+  psql -h $RDS_HOST -U postgres -d industrial_pm -c \
   "SELECT (SELECT count(*) FROM tickets)  AS tickets,
           (SELECT count(*) FROM users)    AS users,
           (SELECT count(*) FROM ticket_notes) AS notes,
@@ -229,7 +243,7 @@ scp -r "D:/Claude/Industrial PM Tools/db" root@172.28.92.57:/opt/industrial_pm-l
 
 # BE server: run the validated ETL (Tech Doc §7) with STAGING passwords
 docker run --rm -v /opt/industrial_pm/backend:/app -v /opt/industrial_pm-legacy-db:/legacy -w /app \
-  -e DATABASE_URL="postgresql://engpro_stg:<pw>@$RDS_HOST:5432/industrial_pm" \
+  -e DATABASE_URL="postgresql://postgres:<pw>@$RDS_HOST:5432/industrial_pm" \
   -e LEGACY_DIR=/legacy \
   -e SEED_MANAGER_PASSWORD='<strong manager pw>' \
   -e SEED_MEMBER_PASSWORD='<strong shared temp pw>' \
@@ -266,7 +280,7 @@ curl -s http://172.28.92.57:4010/api/v1/workspace   # shows "KPN Downstream-Esti
 
 | Variable | Staging value |
 |---|---|
-| `DATABASE_URL` | `postgresql://engpro_stg:<pw>@pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com:5432/industrial_pm?connection_limit=10` |
+| `DATABASE_URL` | `postgresql://postgres:<pw>@pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com:5432/industrial_pm?connection_limit=10` |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | two different `openssl rand -hex 64` values |
 | `CORS_ORIGIN` | `http://172.28.92.56:3060` |
 | `COOKIE_SECURE` | `false` (staging is plain HTTP — `true` would break login) |
@@ -306,7 +320,7 @@ new password at first staging login, and drop any restored sessions:
 
 ```bash
 docker run --rm -e PGPASSWORD postgres:16-alpine \
-  psql -h $RDS_HOST -U engpro_stg -d industrial_pm \
+  psql -h $RDS_HOST -U postgres -d industrial_pm \
   -c "UPDATE users SET must_change_password = true;" \
   -c "TRUNCATE refresh_tokens;"
 ```
@@ -366,7 +380,7 @@ For data, use RDS point-in-time restore.
 |---|---|
 | nginx returns **502** on `/api/*` | API container down (`docker ps` on BE) or FE→BE port 4010 blocked by the security group |
 | API logs `P1001: Can't reach database server` | BE server IP missing from the RDS whitelist, or wrong host/password in `DATABASE_URL` |
-| `permission denied to create extension` during migrate/restore | The RDS account is not a **privileged** account — recreate it as privileged |
+| `permission denied to create extension "pg_trgm"` / `permission denied for schema public` | The account is a *standard* RDS account. Re-run as the instance's **privileged** account (`postgres`) — see step 1.1. Nothing is half-written when this happens: every statement fails, so the database is still empty and a plain re-run is safe |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |
 | Header dot stays **Offline** | `/ws` proxy block missing/misconfigured in nginx, or security group blocks the FE→BE connection |
 | `connection to server on socket "/var/run/postgresql/..." failed` | `RDS_HOST` was empty, so `-h` got nothing and the client fell back to a local socket inside the container. `export RDS_HOST=...` and `export PGPASSWORD=...` in the **same** shell session as the `docker run` — `-e VAR` only forwards a variable that is actually set on the host |
