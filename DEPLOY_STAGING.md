@@ -263,8 +263,18 @@ cd /opt/industrial_pm/backend
 # 5.1 environment — copy the template and fill it in
 cp .env.staging.example .env.staging
 openssl rand -hex 64   # run twice; paste as JWT_ACCESS_SECRET / JWT_REFRESH_SECRET
-vi .env.staging        # set DATABASE_URL password + the two secrets
+
+# the DB password must be PERCENT-ENCODED in DATABASE_URL (a raw '@' breaks it -> P1013).
+# print the encoded form without echoing the password itself:
+read -rs -p "RDS password: " PW; echo
+docker run --rm -e PW="$PW" python:3-alpine   python -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['PW'],safe=''))"
+
+vi .env.staging        # paste the ENCODED password into DATABASE_URL + the two secrets
 chmod 600 .env.staging
+
+# sanity check: exactly one '@' must remain in the line, and the host:port must be intact
+awk -F'@' '/^DATABASE_URL/{print NF-1" at-signs (must be 1)"}' .env.staging
+grep '^DATABASE_URL' .env.staging | sed -E 's|(://[^:]*:)[^@]*@|\1****@|'   # password masked; host:port must look right
 
 # 5.2 build & start (the container runs `prisma migrate deploy` before the API boots)
 docker compose -f docker-compose.staging.yml up -d --build
@@ -379,6 +389,7 @@ For data, use RDS point-in-time restore.
 | Symptom | Likely cause / fix |
 |---|---|
 | nginx returns **502** on `/api/*` | API container down (`docker ps` on BE) or FE→BE port 4010 blocked by the security group |
+| API logs `P1013 ... invalid port number in database URL` | The password in `DATABASE_URL` contains a character that breaks URL parsing (usually `@`, also `#/:?&%+`). Percent-encode it (`@`=`%40`, `#`=`%23`, `/`=`%2F`, `:`=`%3A`). Check with `awk -F'@' '/^DATABASE_URL/{print NF-1" at-signs"}' .env.staging` — it must print `1 at-signs` |
 | API logs `P1001: Can't reach database server` | BE server IP missing from the RDS whitelist, or wrong host/password in `DATABASE_URL` |
 | `permission denied to create extension "pg_trgm"` / `permission denied for schema public` | The account is a *standard* RDS account. Re-run as the instance's **privileged** account (`postgres`) — see step 1.1. Nothing is half-written when this happens: every statement fails, so the database is still empty and a plain re-run is safe |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |
