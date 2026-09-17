@@ -38,6 +38,10 @@ services:
       THROTTLE_LIMIT: "5"
       COOKIE_SECURE: "false"
       PORT: "3000"
+      APP_BASE_URL: http://localhost:8090
+      MAIL_FROM: EngPro <no-reply@engpro.local>
+      ACTIVATION_TTL_HOURS: "72"
+      RESET_TTL_MINUTES: "60"
     depends_on:
       db:
         condition: service_healthy

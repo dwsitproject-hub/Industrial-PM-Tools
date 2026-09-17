@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaService } from './prisma.service';
 import { AuditService } from './common/audit.service';
+import { MailService } from './common/mail.service';
+import { TokensService } from './auth/tokens.service';
 import { PermissionsService } from './common/permissions';
 import { JwtAuthGuard, PasswordChangeGuard, PermGuard, RolesGuard } from './common/guards';
 import { RolesController } from './roles/roles.controller';
@@ -33,7 +35,7 @@ import { HealthController } from './health/health.controller';
     TicketsController, KpiController, AuditController, RolesController, HealthController,
   ],
   providers: [
-    PrismaService, AuditService, PermissionsService, EventsGateway,
+    PrismaService, AuditService, PermissionsService, EventsGateway, MailService, TokensService,
     AuthService, UsersService, TicketsService, KpiService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PasswordChangeGuard },

@@ -44,7 +44,7 @@ Repository: `git@github.com:dwsitproject-hub/Industrial-PM-Tools.git`
   - BE server: allow inbound TCP **4010** from **172.28.92.56/32 only** (the FE server). Do **not** expose 4010 publicly.
 - [ ] **ApsaraDB whitelist**: add the BE server (`172.28.92.57/32`, or your VPC vSwitch CIDR) to the RDS instance whitelist (console → the instance → *Data Security → Whitelist*).
 - [ ] RDS engine version is PostgreSQL **14 or newer** (16 recommended — local runs 16, and the data dump was taken with pg 16 tools).
-- [ ] Local machine: e2e suite green (`cd backend && npm run test:e2e` → 67 passed) and fresh SPA build (`cd frontend && npm run build`).
+- [ ] Local machine: e2e suite green (`cd backend && npm run test:e2e` → 86 passed) and fresh SPA build (`cd frontend && npm run build`).
 
 ---
 
@@ -302,6 +302,8 @@ curl -s http://172.28.92.57:4010/api/v1/workspace   # shows "KPN Downstream-Esti
 | `CORS_ORIGIN` | `http://172.28.92.56:3060` |
 | `COOKIE_SECURE` | `false` (staging is plain HTTP — `true` would break login) |
 | `WORKSPACE_TZ` | `Asia/Jakarta` |
+| `APP_BASE_URL` | `http://172.28.92.56:3060` — **activation / reset links are built from this**, so a wrong value emails links that go nowhere |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | your mail relay. Leave `SMTP_HOST` empty and the flows still work: the API logs the link and the manager sees it in *Settings → Users* to share manually |
 
 ---
 

@@ -69,6 +69,13 @@ enum TenderStatus {
   @@map("tender_status")
 }
 
+enum AuthTokenType {
+  ACTIVATION
+  PASSWORD_RESET
+
+  @@map("auth_token_type")
+}
+
 enum TicketScope {
   ALL
   OWN
@@ -142,6 +149,7 @@ model User {
   mustChangePassword Boolean   @default(true) @map("must_change_password")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  activatedAt        DateTime? @map("activated_at") @db.Timestamptz(6)
   deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   assignedTickets  Ticket[]       @relation("TicketAssignee")
@@ -150,6 +158,7 @@ model User {
   kpiEntries       KpiEntry[]     @relation("KpiUser")
   kpiCreated       KpiEntry[]     @relation("KpiCreator")
   refreshTokens    RefreshToken[]
+  authTokens       AuthToken[]
   auditEntries     AuditLog[]
 
   @@unique([workspaceId, username])
@@ -261,6 +270,21 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@map("audit_log")
+}
+
+model AuthToken {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @map("token_hash")
+  expiresAt DateTime      @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime?     @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tokenHash])
+  @@index([userId, type])
+  @@map("auth_tokens")
 }
 
 model RefreshToken {

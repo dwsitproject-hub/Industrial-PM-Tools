@@ -58,7 +58,7 @@ beforeAll(async () => {
     data: {
       workspaceId: ws.id, username, email: mail(username),
       fullName: username.toUpperCase(), role: role as any,
-      passwordHash: hash, mustChangePassword: false, ...extra,
+      passwordHash: hash, mustChangePassword: false, activatedAt: new Date(), ...extra,
     },
   });
   manager = await mk('boss', 'MANAGER');
@@ -192,15 +192,18 @@ describe('F3 authentication & sessions', () => {
 
 describe('F16 user administration + forced password change', () => {
   let newUserId = '';
-  let tempPassword = '';
-  it('manager creates a user and receives the temp password exactly once', async () => {
+  let charlieLink = '';
+  const linkToken = (link: string) => new URL(link).searchParams.get('token')!;
+  it('manager creates a user and receives an activation link, never a password', async () => {
     const res = await request(http).post('/api/v1/users').set(auth(tokens.manager)).send({
       email: 'charlie@test.local', fullName: 'Charlie New', role: 'ESTIMATOR', avatarColor: 2,
     });
     expect(res.status).toBe(201);
-    expect(res.body.tempPassword).toHaveLength(12);
+    expect(res.body.tempPassword).toBeUndefined();
+    expect(res.body.activation.link).toContain('/activate?token=');
+    expect(res.body.activatedAt).toBeNull();
     newUserId = res.body.id;
-    tempPassword = res.body.tempPassword;
+    charlieLink = res.body.activation.link;
   });
   it('duplicate email is rejected with 409', async () => {
     const res = await request(http).post('/api/v1/users').set(auth(tokens.manager)).send({
@@ -215,8 +218,11 @@ describe('F16 user administration + forced password change', () => {
     expect(res.status).toBe(201);
     expect(res.body.email).toBe('dana.lee@test.local');   // normalised
     expect(res.body.username).toBe('dana.lee');           // derived from the local-part
+    await request(http).post('/api/v1/auth/activate')
+      .send({ token: linkToken(res.body.activation.link), newPassword: 'DanaLee#2026pw' })
+      .expect(200);
     const loginRes = await request(http).post('/api/v1/auth/login')
-      .send({ email: 'dana.lee@test.local', password: res.body.tempPassword });
+      .send({ email: 'dana.lee@test.local', password: 'DanaLee#2026pw' });
     expect(loginRes.status).toBe(200);
   });
   it('creating a user without a valid email is rejected', async () => {
@@ -238,7 +244,14 @@ describe('F16 user administration + forced password change', () => {
     });
     expect(res.status).toBe(403);
   });
-  it('temp-password login is forced through change-password before any other call', async () => {
+  it('a must-change-password flag forces the change before any other call', async () => {
+    // charlie activates with a password of their own
+    await request(http).post('/api/v1/auth/activate')
+      .send({ token: linkToken(charlieLink), newPassword: 'Charlie#2026tmp' })
+      .expect(200);
+    // ops can still force a rotation (this is what the staging hardening SQL does)
+    await prisma.user.update({ where: { id: newUserId }, data: { mustChangePassword: true } });
+    const tempPassword = 'Charlie#2026tmp';
     const loginRes = await request(http).post('/api/v1/auth/login')
       .send({ email: mail('charlie'), password: tempPassword });
     expect(loginRes.status).toBe(200);
@@ -258,12 +271,20 @@ describe('F16 user administration + forced password change', () => {
     const open = await request(http).get('/api/v1/tickets').set(auth(t2));
     expect(open.status).toBe(200);
   });
-  it('password reset issues a new temp password and revokes sessions', async () => {
+  it('manager reset sends a link and leaves the old password working until it is used', async () => {
     const res = await request(http).post(`/api/v1/users/${newUserId}/reset-password`).set(auth(tokens.manager));
     expect(res.status).toBe(200);
-    expect(res.body.tempPassword).toHaveLength(12);
+    expect(res.body.kind).toBe('PASSWORD_RESET');
+    expect(res.body.link).toContain('/reset-password?token=');
+    expect(res.body.tempPassword).toBeUndefined();
+    // unchanged until the link is consumed
+    const still = await request(http).post('/api/v1/auth/login')
+      .send({ email: mail('charlie'), password: 'Charlie#2026ok' });
+    expect(still.status).toBe(200);
+    await request(http).post('/api/v1/auth/reset-password')
+      .send({ token: linkToken(res.body.link), newPassword: 'Charlie#2026new' }).expect(200);
     const relog = await request(http).post('/api/v1/auth/login')
-      .send({ email: mail('charlie'), password: res.body.tempPassword });
+      .send({ email: mail('charlie'), password: 'Charlie#2026new' });
     expect(relog.status).toBe(200);
   });
   it('deactivated users cannot log in; manager cannot deactivate self', async () => {
@@ -272,7 +293,7 @@ describe('F16 user administration + forced password change', () => {
     const res = await request(http).delete(`/api/v1/users/${newUserId}`).set(auth(tokens.manager));
     expect(res.status).toBe(200);
     const relog = await request(http).post('/api/v1/auth/login')
-      .send({ email: mail('charlie'), password: 'Charlie#2026ok' });
+      .send({ email: mail('charlie'), password: 'Charlie#2026new' });
     expect(relog.status).toBe(401);
   });
   it('estimators get a directory, not the full admin view', async () => {
@@ -775,6 +796,143 @@ describe('F18 Roles & permissions administration (Settings → Roles)', () => {
     expect((res.body.pages.tickets as any).explode).toBeUndefined();
     const audit = await request(http).get('/api/v1/audit?entityType=role_config').set(auth(tokens.manager));
     expect(audit.body.total).toBeGreaterThan(0);
+  });
+});
+
+describe('F19 account activation & self-service password reset', () => {
+  const PW_NEW = 'BrandNew#2026pass';
+  let inviteId = '';
+  let inviteLink = '';
+  const tokenOf = (link: string) => new URL(link).searchParams.get('token')!;
+
+  it('a new account is created pending, with an activation link and no usable password', async () => {
+    const res = await request(http).post('/api/v1/users').set(auth(tokens.manager)).send({
+      email: 'erin@test.local', fullName: 'Erin Invite', role: 'ESTIMATOR',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.activatedAt).toBeNull();
+    expect(res.body.activation.link).toContain('/activate?token=');
+    expect(res.body.tempPassword).toBeUndefined();
+    inviteId = res.body.id;
+    inviteLink = res.body.activation.link;
+    const row = await prisma.authToken.findFirst({ where: { userId: inviteId, type: 'ACTIVATION' } });
+    expect(row).toBeTruthy();
+    expect(row!.tokenHash).not.toBe(tokenOf(inviteLink));
+  });
+
+  it('a pending account cannot log in and is told why', async () => {
+    const res = await request(http).post('/api/v1/auth/login')
+      .send({ email: 'erin@test.local', password: PW_NEW });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('AccountNotActivated');
+  });
+
+  it('the activation link can be inspected before use', async () => {
+    const res = await request(http).get('/api/v1/auth/activate/' + tokenOf(inviteLink));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ valid: true, email: 'erin@test.local', fullName: 'Erin Invite' });
+  });
+
+  it('a weak password is rejected and the link stays usable', async () => {
+    const weak = await request(http).post('/api/v1/auth/activate')
+      .send({ token: tokenOf(inviteLink), newPassword: 'short' });
+    expect(weak.status).toBe(400);
+    const stillValid = await request(http).get('/api/v1/auth/activate/' + tokenOf(inviteLink));
+    expect(stillValid.status).toBe(200);
+  });
+
+  it('activation sets the password, activates the account and enables login', async () => {
+    const res = await request(http).post('/api/v1/auth/activate')
+      .send({ token: tokenOf(inviteLink), newPassword: PW_NEW });
+    expect(res.status).toBe(200);
+    const login = await request(http).post('/api/v1/auth/login')
+      .send({ email: 'erin@test.local', password: PW_NEW });
+    expect(login.status).toBe(200);
+    expect(login.body.user.mustChangePassword).toBe(false);
+  });
+
+  it('an activation link is single-use', async () => {
+    const again = await request(http).post('/api/v1/auth/activate')
+      .send({ token: tokenOf(inviteLink), newPassword: 'AnotherPass#99' });
+    expect(again.status).toBe(400);
+    expect(again.body.error).toBe('TokenUsed');
+  });
+
+  it('resending an invitation supersedes the previous link', async () => {
+    const pending = await request(http).post('/api/v1/users').set(auth(tokens.manager))
+      .send({ email: 'frank@test.local', fullName: 'Frank Pending', role: 'ESTIMATOR' });
+    const first = tokenOf(pending.body.activation.link);
+    const resend = await request(http).post('/api/v1/users/' + pending.body.id + '/resend-activation')
+      .set(auth(tokens.manager));
+    expect(resend.status).toBe(200);
+    const second = tokenOf(resend.body.link);
+    expect(second).not.toBe(first);
+    expect((await request(http).get('/api/v1/auth/activate/' + first)).status).toBe(400);
+    expect((await request(http).get('/api/v1/auth/activate/' + second)).status).toBe(200);
+  });
+
+  it('resend-activation is refused once the account is activated', async () => {
+    const res = await request(http).post('/api/v1/users/' + inviteId + '/resend-activation').set(auth(tokens.manager));
+    expect(res.status).toBe(400);
+  });
+
+  it('forgot-password answers identically for known and unknown addresses', async () => {
+    const known = await request(http).post('/api/v1/auth/forgot-password').send({ email: mail('alice') });
+    const unknown = await request(http).post('/api/v1/auth/forgot-password').send({ email: 'nobody@test.local' });
+    expect(known.status).toBe(200);
+    expect(unknown.status).toBe(200);
+    expect(known.body).toEqual(unknown.body);
+    const issued = await prisma.authToken.count({ where: { userId: est1.id, type: 'PASSWORD_RESET' } });
+    expect(issued).toBe(1);
+  });
+
+  it('a reset link sets a new password and kills existing sessions', async () => {
+    const agent = request.agent(http);
+    await agent.post('/api/v1/auth/login').send({ email: mail('alice'), password: PW });
+    const fresh = await request(http).post('/api/v1/users/' + est1.id + '/reset-password').set(auth(tokens.manager));
+    expect(fresh.body.kind).toBe('PASSWORD_RESET');
+    const res = await request(http).post('/api/v1/auth/reset-password')
+      .send({ token: tokenOf(fresh.body.link), newPassword: 'AliceReset#2026' });
+    expect(res.status).toBe(200);
+    expect((await request(http).post('/api/v1/auth/login').send({ email: mail('alice'), password: PW })).status).toBe(401);
+    const relogin = await request(http).post('/api/v1/auth/login')
+      .send({ email: mail('alice'), password: 'AliceReset#2026' });
+    expect(relogin.status).toBe(200);
+    expect((await agent.post('/api/v1/auth/refresh')).status).toBe(401);
+    tokens.est1 = relogin.body.accessToken;
+  });
+
+  it('a reset link is single-use and an unknown token is rejected', async () => {
+    const issued = await request(http).post('/api/v1/users/' + est2.id + '/reset-password').set(auth(tokens.manager));
+    const t = tokenOf(issued.body.link);
+    expect((await request(http).post('/api/v1/auth/reset-password')
+      .send({ token: t, newPassword: 'BobReset#2026a' })).status).toBe(200);
+    const reuse = await request(http).post('/api/v1/auth/reset-password')
+      .send({ token: t, newPassword: 'BobReset#2026b' });
+    expect(reuse.status).toBe(400);
+    expect(reuse.body.error).toBe('TokenUsed');
+    const bogus = await request(http).post('/api/v1/auth/reset-password')
+      .send({ token: 'f'.repeat(64), newPassword: 'Whatever#2026' });
+    expect(bogus.status).toBe(400);
+    const r = await request(http).post('/api/v1/auth/login').send({ email: mail('bob'), password: 'BobReset#2026a' });
+    tokens.est2 = r.body.accessToken;
+  });
+
+  it('an expired link is refused', async () => {
+    const issued = await request(http).post('/api/v1/users/' + inviteId + '/reset-password').set(auth(tokens.manager));
+    await prisma.authToken.updateMany({
+      where: { userId: inviteId, type: 'PASSWORD_RESET', usedAt: null },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+    const res = await request(http).post('/api/v1/auth/reset-password')
+      .send({ token: tokenOf(issued.body.link), newPassword: 'Expired#2026pw' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('TokenExpired');
+  });
+
+  it('only roles with stUsers.edit can send links', async () => {
+    const res = await request(http).post('/api/v1/users/' + est1.id + '/reset-password').set(auth(tokens.admin));
+    expect(res.status).toBe(403);
   });
 });
 

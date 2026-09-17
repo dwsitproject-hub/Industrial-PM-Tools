@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Injectable, UnauthorizedException,
+  BadRequestException, ForbiddenException, Injectable, UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma.service';
 import { AuditService } from '../common/audit.service';
 import { JwtUser } from '../common/auth.types';
 import { validatePassword } from '../common/util';
+import { TokensService } from './tokens.service';
 
 const ARGON_OPTS: argon2.Options = { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 1 };
 
@@ -18,7 +19,12 @@ export interface TokenPair {
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService, private jwt: JwtService, private audit: AuditService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+    private audit: AuditService,
+    private tokens: TokensService,
+  ) {}
 
   static hashToken(raw: string): string {
     return createHash('sha256').update(raw).digest('hex');
@@ -60,6 +66,12 @@ export class AuthService {
     });
     const invalid = new UnauthorizedException('Invalid email or password');
     if (!user) throw invalid;
+    if (!user.activatedAt) {
+      throw new ForbiddenException({
+        error: 'AccountNotActivated',
+        message: 'This account has not been activated yet. Use the activation link that was emailed to you, or ask your manager to resend it.',
+      });
+    }
     const ok = await argon2.verify(user.passwordHash, password || '').catch(() => false);
     if (!ok) {
       await this.audit.log({
@@ -135,6 +147,63 @@ export class AuthService {
     const accessToken = this.signAccess(updated);
     const refreshToken = await this.issueRefresh(userId, randomUUID());
     return { accessToken, refreshToken, user: updated };
+  }
+
+  /**
+   * Always resolves the same way so the endpoint cannot be used to discover which
+   * addresses are registered. A link is only issued for an activated, active account.
+   */
+  async forgotPassword(email: string, company: string, ip?: string): Promise<void> {
+    const user = await this.prisma.user.findFirst({
+      where: { email: (email || '').trim().toLowerCase(), isActive: true, deletedAt: null },
+      select: { id: true, email: true, fullName: true, workspaceId: true, activatedAt: true },
+    });
+    if (!user) return;
+    if (!user.activatedAt) {
+      // pending account: resend the activation link instead — same outcome for the caller
+      await this.tokens.sendActivation(user, company);
+      return;
+    }
+    await this.tokens.sendReset(user, company);
+    await this.audit.log({
+      workspaceId: user.workspaceId, actorId: user.id, entityType: 'auth',
+      entityId: user.id, action: 'password-reset-requested', ip,
+    });
+  }
+
+  /** Completes a self-service reset: sets the password and kills every existing session. */
+  async resetPassword(rawToken: string, newPassword: string, ip?: string) {
+    const policyError = validatePassword(newPassword);
+    if (policyError) throw new BadRequestException(policyError);
+    const row = await this.tokens.consume(rawToken, 'PASSWORD_RESET');
+    const passwordHash = await this.hashPassword(newPassword);
+    const user = await this.prisma.user.update({
+      where: { id: row.userId },
+      data: { passwordHash, mustChangePassword: false },
+    });
+    await this.revokeAllForUser(user.id);
+    await this.audit.log({
+      workspaceId: user.workspaceId, actorId: user.id, entityType: 'auth',
+      entityId: user.id, action: 'password-reset-completed', ip,
+    });
+    return { ok: true };
+  }
+
+  /** Completes activation: the invited user picks their own password and the account goes live. */
+  async activate(rawToken: string, newPassword: string, ip?: string) {
+    const policyError = validatePassword(newPassword);
+    if (policyError) throw new BadRequestException(policyError);
+    const row = await this.tokens.consume(rawToken, 'ACTIVATION');
+    const passwordHash = await this.hashPassword(newPassword);
+    const user = await this.prisma.user.update({
+      where: { id: row.userId },
+      data: { passwordHash, mustChangePassword: false, activatedAt: new Date() },
+    });
+    await this.audit.log({
+      workspaceId: user.workspaceId, actorId: user.id, entityType: 'auth',
+      entityId: user.id, action: 'account-activated', ip,
+    });
+    return { ok: true, email: user.email };
   }
 
   async revokeAllForUser(userId: string) {

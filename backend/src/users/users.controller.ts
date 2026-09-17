@@ -64,6 +64,13 @@ export class UsersController {
     return this.users.resetPassword(user, id, req.ip);
   }
 
+  @RequirePerm('stUsers', 'edit')
+  @Post(':id/resend-activation')
+  @HttpCode(200)
+  async resendActivation(@CurrentUser() user: JwtUser, @Param('id') id: string, @Req() req: Request) {
+    return this.users.resendActivation(user, id, req.ip);
+  }
+
   @RequirePerm('stUsers', 'delete')
   @Delete(':id')
   async deactivate(@CurrentUser() user: JwtUser, @Param('id') id: string, @Req() req: Request) {

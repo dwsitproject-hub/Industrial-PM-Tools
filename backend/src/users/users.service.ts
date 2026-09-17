@@ -7,7 +7,7 @@ import { AuthService } from '../auth/auth.service';
 import { EventsGateway } from '../events/events.gateway';
 import { JwtUser } from '../common/auth.types';
 import { PermissionsService } from '../common/permissions';
-import { generateTempPassword } from '../common/util';
+import { TokensService } from '../auth/tokens.service';
 
 const PUBLIC_SELECT = {
   id: true, username: true, fullName: true, role: true, siteId: true,
@@ -22,7 +22,13 @@ export class UsersService {
     private auth: AuthService,
     private events: EventsGateway,
     private permsSvc: PermissionsService,
+    private tokens: TokensService,
   ) {}
+
+  private async companyName(workspaceId: string): Promise<string> {
+    const ws = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
+    return ws?.company || 'EngPro';
+  }
 
   async list(user: JwtUser, role?: string, active?: string) {
     const where: any = { workspaceId: user.ws, deletedAt: null };
@@ -32,7 +38,7 @@ export class UsersService {
     if (await this.permsSvc.can(user, 'stUsers', 'view')) {
       const rows = await this.prisma.user.findMany({
         where, orderBy: { fullName: 'asc' },
-        select: { ...PUBLIC_SELECT, email: true, mustChangePassword: true, createdAt: true, site: { select: { id: true, name: true } } },
+        select: { ...PUBLIC_SELECT, email: true, mustChangePassword: true, activatedAt: true, createdAt: true, site: { select: { id: true, name: true } } },
       });
       return rows;
     }
@@ -61,8 +67,8 @@ export class UsersService {
   async create(actor: JwtUser, dto: any, ip?: string) {
     const email = String(dto.email).trim().toLowerCase();
     const username = await this.deriveUsername(actor.ws, email, dto.username);
-    const tempPassword = generateTempPassword();
-    const passwordHash = await this.auth.hashPassword(tempPassword);
+    // No usable password until the invitee activates: hash an unguessable random value.
+    const passwordHash = await this.auth.hashPassword(require('crypto').randomBytes(32).toString('hex'));
     try {
       const created = await this.prisma.user.create({
         data: {
@@ -74,16 +80,24 @@ export class UsersService {
           siteId: dto.role === 'SITE_ADMIN' ? dto.siteId : dto.siteId ?? null,
           avatarColor: dto.avatarColor ?? 0,
           passwordHash,
-          mustChangePassword: true,
+          mustChangePassword: false,
+          activatedAt: null,          // pending until the activation link is used
         },
-        select: { ...PUBLIC_SELECT, email: true, mustChangePassword: true },
+        select: { ...PUBLIC_SELECT, email: true, mustChangePassword: true, activatedAt: true },
       });
       await this.audit.log({
         workspaceId: actor.ws, actorId: actor.sub, entityType: 'user', entityId: created.id,
         action: 'create', after: created, ip,
       });
       this.events.emitWorkspace(actor.ws, 'user.updated', { id: created.id, workspaceId: actor.ws });
-      return { ...created, tempPassword };
+      const { link, mail } = await this.tokens.sendActivation(
+        { id: created.id, email: created.email!, fullName: created.fullName },
+        await this.companyName(actor.ws),
+      );
+      return {
+        ...created,
+        activation: { link, emailed: mail.delivered, reason: mail.reason },
+      };
     } catch (e: any) {
       if (e.code === 'P2002') {
         const target = String((e.meta?.target ?? '')).toLowerCase();
@@ -134,18 +148,39 @@ export class UsersService {
     return updated;
   }
 
+  /** Manager-initiated: emails a single-use link instead of handing out a password. */
   async resetPassword(actor: JwtUser, id: string, ip?: string) {
     const existing = await this.prisma.user.findFirst({ where: { id, workspaceId: actor.ws, deletedAt: null } });
     if (!existing) throw new NotFoundException();
-    const tempPassword = generateTempPassword();
-    const passwordHash = await this.auth.hashPassword(tempPassword);
-    await this.prisma.user.update({ where: { id }, data: { passwordHash, mustChangePassword: true } });
-    await this.auth.revokeAllForUser(id);
+    const company = await this.companyName(actor.ws);
+    const target = { id: existing.id, email: existing.email!, fullName: existing.fullName };
+    const pending = !existing.activatedAt;
+    const { link, mail } = pending
+      ? await this.tokens.sendActivation(target, company)
+      : await this.tokens.sendReset(target, company);
     await this.audit.log({
       workspaceId: actor.ws, actorId: actor.sub, entityType: 'user', entityId: id,
-      action: 'password-reset', ip,
+      action: pending ? 'activation-resent' : 'password-reset-link-sent', ip,
     });
-    return { id, tempPassword };
+    return { id, kind: pending ? 'ACTIVATION' : 'PASSWORD_RESET', link, emailed: mail.delivered, reason: mail.reason };
+  }
+
+  /** Explicit resend for a pending invitation. */
+  async resendActivation(actor: JwtUser, id: string, ip?: string) {
+    const existing = await this.prisma.user.findFirst({ where: { id, workspaceId: actor.ws, deletedAt: null } });
+    if (!existing) throw new NotFoundException();
+    if (existing.activatedAt) {
+      throw new BadRequestException('This account is already activated — send a password reset instead.');
+    }
+    const { link, mail } = await this.tokens.sendActivation(
+      { id: existing.id, email: existing.email!, fullName: existing.fullName },
+      await this.companyName(actor.ws),
+    );
+    await this.audit.log({
+      workspaceId: actor.ws, actorId: actor.sub, entityType: 'user', entityId: id,
+      action: 'activation-resent', ip,
+    });
+    return { id, kind: 'ACTIVATION', link, emailed: mail.delivered, reason: mail.reason };
   }
 
   async softDelete(actor: JwtUser, id: string, ip?: string) {

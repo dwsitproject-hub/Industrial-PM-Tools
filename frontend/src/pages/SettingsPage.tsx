@@ -210,14 +210,16 @@ function UsersTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [modal, setModal] = useState<null | { mode: 'add' } | { mode: 'edit'; user: any }>(null);
-  const [tempPw, setTempPw] = useState<{ name: string; pw: string } | null>(null);
+  const [invite, setInvite] = useState<{ name: string; kind: string; link: string; emailed: boolean; reason?: string } | null>(null);
   const { data: users, isLoading } = useQuery({ queryKey: ['users', 'admin'], queryFn: () => api.get('/api/v1/users') });
 
-  const resetPw = useMutation({
-    mutationFn: (id: string) => api.post(`/api/v1/users/${id}/reset-password`),
-    onSuccess: (res: any, id) => {
-      const u = users.find((x: any) => x.id === id);
-      setTempPw({ name: u?.fullName || '', pw: res.tempPassword });
+  const sendLink = useMutation({
+    mutationFn: ({ id, resend }: { id: string; resend: boolean }) =>
+      api.post(`/api/v1/users/${id}/${resend ? 'resend-activation' : 'reset-password'}`),
+    onSuccess: (res: any, vars) => {
+      const u = users.find((x: any) => x.id === vars.id);
+      setInvite({ name: u?.fullName || '', kind: res.kind, link: res.link, emailed: res.emailed, reason: res.reason });
+      qc.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (e: any) => toast(e.message, true),
   });
@@ -249,12 +251,16 @@ function UsersTab() {
               {u.fullName} <Badge kind={roleBadge[u.role]} label={u.role.replace('_', ' ')} />
               {u.site && <span className="fs11 c-hint"> · {u.site.name}</span>}
               {!u.isActive && <span className="fs11 c-red"> · inactive</span>}
-              {u.mustChangePassword && <span className="fs11" style={{ color: '#854F0B' }}> · temp password</span>}
+              {!u.activatedAt && <span className="fs11" style={{ color: '#854F0B' }}> · pending activation</span>}
+              {u.activatedAt && u.mustChangePassword && <span className="fs11" style={{ color: '#854F0B' }}> · must change password</span>}
             </div>
             <div className="fs11 c-hint mono">{u.email}</div>
           </div>
           <button className="btn btn-outline btn-xs" onClick={() => setModal({ mode: 'edit', user: u })}>Edit</button>
-          <button className="btn btn-outline btn-xs" onClick={() => resetPw.mutate(u.id)}>Reset password</button>
+          <button className="btn btn-outline btn-xs" disabled={sendLink.isPending}
+            onClick={() => sendLink.mutate({ id: u.id, resend: !u.activatedAt })}>
+            {u.activatedAt ? 'Send reset link' : 'Resend activation'}
+          </button>
           {u.id !== profile!.user.id && u.isActive && (
             <button className="btn btn-danger btn-xs" onClick={() => { if (window.confirm(`Deactivate ${u.fullName}? Their sessions end and they can no longer log in.`)) deactivate.mutate(u.id); }}>
               Deactivate
@@ -266,22 +272,39 @@ function UsersTab() {
         <UserModal
           existing={modal.mode === 'edit' ? modal.user : null}
           onClose={() => setModal(null)}
-          onSaved={(temp?: { name: string; pw: string }) => {
+          onSaved={(inv?: any) => {
             setModal(null);
             qc.invalidateQueries({ queryKey: ['users'] });
-            if (temp) setTempPw(temp);
+            if (inv) setInvite(inv);
             else toast('Saved');
           }}
         />
       )}
-      {tempPw && (
-        <Modal title={`Temporary password for ${tempPw.name}`} onClose={() => setTempPw(null)}>
-          <p className="fs13 c-muted mb12">Share this once — it is not stored readable and cannot be shown again. The user must change it at first login.</p>
-          <div className="mono" style={{ fontSize: 20, textAlign: 'center', padding: '12px', background: 'var(--surface2)', borderRadius: 8, userSelect: 'all' }}>
-            {tempPw.pw}
+      {invite && (
+        <Modal
+          title={invite.kind === 'ACTIVATION' ? `Invitation for ${invite.name}` : `Reset link for ${invite.name}`}
+          onClose={() => setInvite(null)}
+        >
+          {invite.emailed ? (
+            <p className="fs13 c-muted mb12">
+              An email is on its way with a single-use link. {invite.kind === 'ACTIVATION'
+                ? 'They choose their own password to activate the account.'
+                : 'It expires in an hour.'} No password is shared by hand.
+            </p>
+          ) : (
+            <>
+              <p className="fs13 mb8" style={{ color: 'var(--red-text)' }}>
+                The email could not be sent{invite.reason ? ` — ${invite.reason}` : ''}.
+              </p>
+              <p className="fs13 c-muted mb12">Send this link to them yourself. It is single-use.</p>
+            </>
+          )}
+          <div className="mono" style={{ fontSize: 12, padding: 10, background: 'var(--surface2)', borderRadius: 8, userSelect: 'all', wordBreak: 'break-all' }}>
+            {invite.link}
           </div>
-          <button className="btn btn-primary btn-full mt12" onClick={() => { navigator.clipboard?.writeText(tempPw.pw); setTempPw(null); }}>
-            Copy & close
+          <button className="btn btn-primary btn-full mt12"
+            onClick={() => { navigator.clipboard?.writeText(invite.link); setInvite(null); }}>
+            Copy link & close
           </button>
         </Modal>
       )}
@@ -305,7 +328,7 @@ function UserModal({ existing, onClose, onSaved }: any) {
           email: f.email.trim(), fullName: f.fullName, role: f.role,
           siteId: f.role === 'SITE_ADMIN' ? f.siteId : undefined, avatarColor: f.avatarColor,
         }),
-    onSuccess: (res: any) => onSaved(res.tempPassword ? { name: res.fullName, pw: res.tempPassword } : undefined),
+    onSuccess: (res: any) => onSaved(res.activation ? { name: res.fullName, kind: 'ACTIVATION', ...res.activation } : undefined),
     onError: (e: any) => toast(e.message, true),
   });
   return (
@@ -338,7 +361,7 @@ function UserModal({ existing, onClose, onSaved }: any) {
         </div></div>
       <button className="btn btn-primary btn-full mt8" onClick={() => save.mutate()}
         disabled={save.isPending || !f.fullName || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim()) || (f.role === 'SITE_ADMIN' && !f.siteId)}>
-        {existing ? 'Save changes' : 'Create user & generate password'}
+        {existing ? 'Save changes' : 'Create user & send invitation'}
       </button>
     </Modal>
   );

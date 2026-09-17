@@ -12,6 +12,7 @@ import MyTicketsPage from './pages/MyTicketsPage';
 import KpiPage from './pages/KpiPage';
 import MyKpiPage from './pages/MyKpiPage';
 import SettingsPage from './pages/SettingsPage';
+import { ForgotPasswordPage, TokenPasswordPage } from './pages/TokenPages';
 
 const SETTINGS_KEYS = ['stUsers', 'stSites', 'stWorkspace', 'stRoles', 'stAudit'];
 export const anySettings = (perms: Perms | null) =>
@@ -52,9 +53,20 @@ function NoAccess() {
 export default function App() {
   const { profile, perms, loading } = useAuth();
   if (loading) return <Spinner />;
+  // Activation and reset links must work while signed out — and must win over the
+  // logged-in shell too, so an existing session cannot swallow the link.
+  const publicRoutes = (
+    <>
+      <Route path="/activate" element={<TokenPasswordPage mode="activate" />} />
+      <Route path="/reset-password" element={<TokenPasswordPage mode="reset" />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+    </>
+  );
+
   if (!profile || profile.user.mustChangePassword || !perms) {
     return (
       <Routes>
+        {publicRoutes}
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );
@@ -63,6 +75,7 @@ export default function App() {
   const home = homeFor(perms, profile.user.role);
   return (
     <Routes>
+      {publicRoutes}
       <Route path="/login" element={<Navigate to={home} replace />} />
       <Route path="/no-access" element={<NoAccess />} />
       <Route element={<Layout />}>

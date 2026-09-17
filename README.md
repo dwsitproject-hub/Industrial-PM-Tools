@@ -60,8 +60,24 @@ cd frontend && npm run dev      # Vite dev server on :5173, proxies /api and /ws
 #   then: docker exec engpro-dev-db psql -U engpro -d postgres -c "CREATE DATABASE industrial_pm_test;"
 cd backend
 DATABASE_URL=postgresql://engpro:engpro@localhost:5439/industrial_pm_test npx prisma migrate deploy
-npm run test:e2e     # 67 tests: auth, RBAC, roles matrix, numbering race, locking, KPI engine, audit
+npm run test:e2e     # 86 tests: auth, RBAC, roles matrix, numbering race, locking, KPI engine, audit
 ```
+
+## Accounts: email activation & self-service password reset
+
+- **Managers invite, they never hand out passwords.** Creating a user in *Settings → Users* sends
+  an activation email; the invitee sets their own password from a single-use link
+  (`ACTIVATION_TTL_HOURS`, default 72h). Until then the account is **pending** and cannot sign in.
+- **Forgot password** is self-service from the sign-in page: the address always gets the same
+  answer (no account enumeration), and a valid account receives a single-use link
+  (`RESET_TTL_MINUTES`, default 60). Completing a reset revokes every existing session.
+- Tokens are stored **hashed**; issuing a new link supersedes the outstanding one.
+- Managers can *Resend activation* (pending) or *Send reset link* (active) per user.
+
+**Email is optional to get started.** With `SMTP_HOST` empty the API logs the message and the UI
+shows the manager the link to pass on by hand — the flows work, nothing fails silently. Configure
+`SMTP_*`, `MAIL_FROM` and **`APP_BASE_URL`** (the URL users browse to — the links are built from it)
+to send real mail.
 
 ## Configurable role permissions (Settings → Roles)
 

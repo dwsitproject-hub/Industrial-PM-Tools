@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 
@@ -28,6 +29,7 @@ export default function LoginPage() {
       if (p.user.mustChangePassword) setMustChange(true);
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute and try again.');
+      else if (err instanceof ApiError && err.body?.error === 'AccountNotActivated') setError(err.body.message);
       else if (err instanceof ApiError && err.status === 400) setError('Enter a valid email address.');
       else setError('Invalid email or password.');
     } finally {
@@ -76,6 +78,11 @@ export default function LoginPage() {
             <button className="btn btn-primary btn-full" disabled={busy || !email || !password}>
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
+              <Link to="/forgot-password" className="fs12 c-muted" style={{ textDecoration: 'underline' }}>
+                Forgot your password?
+              </Link>
+            </div>
           </form>
         ) : (
           <form onSubmit={submitChange}>
