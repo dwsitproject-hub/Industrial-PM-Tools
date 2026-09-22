@@ -450,7 +450,7 @@ EngPro implements the strict contract in `SSO-TARGET-APP-INTEGRATION.md`: author
 | Field | Value |
 |---|---|
 | `sso_mode` | `oidc` |
-| `oauth_client_id` | e.g. `engpro-staging` (note it for `.env.staging`) |
+| `oauth_client_id` | **`test-ind-pm`** |
 | `oidc_redirect_uris` | `http://test-ind-pm.kpndomain.com/api/v1/auth/sso/callback` (exact match) |
 
 **2. Configure the backend** (`/opt/industrial_pm/backend/.env.staging`):
@@ -458,7 +458,7 @@ EngPro implements the strict contract in `SSO-TARGET-APP-INTEGRATION.md`: author
 ```bash
 SSO_ENABLED=true
 SSO_ISSUER=http://test-dwshub.kpndomain.com
-SSO_CLIENT_ID=<oauth_client_id from Hub>
+SSO_CLIENT_ID=test-ind-pm
 SSO_REDIRECT_URI=http://test-ind-pm.kpndomain.com/api/v1/auth/sso/callback
 SSO_AUTO_PROVISION=false        # true = first Hub sign-in creates the account
 SSO_DEFAULT_ROLE=ESTIMATOR      # only used when auto-provisioning
@@ -541,6 +541,32 @@ Database migrations in `backend/prisma/migrations/` apply automatically on conta
 
 **Rollback:** `git checkout <previous-commit>` (or re-extract the previous tarball) and rebuild.
 For data, use RDS point-in-time restore.
+
+---
+
+## 9b. Rollout checklist — domain + SSO release
+
+Do these in order. Steps 1–2 are prerequisites: the app reads its own URL from config, so
+publishing the domain before pointing the backend at it avoids a broken intermediate state.
+
+| # | Where | Action | Proof it worked |
+|---|---|---|---|
+| 1 | Hub Admin | Register the app: `sso_mode=oidc`, `oauth_client_id=test-ind-pm`, `oidc_redirect_uris` = `http://test-ind-pm.kpndomain.com/api/v1/auth/sso/callback` | Saved without an enforcement warning |
+| 2 | DNS + FE server | Point `test-ind-pm.kpndomain.com` at the same target as the other `test-*` subdomains, install the edge vhost (§7b) | `curl -H 'Host: test-ind-pm.kpndomain.com' http://127.0.0.1/api/v1/health` returns JSON |
+| 3 | BE server | `git pull`, set `CORS_ORIGIN`, `APP_BASE_URL` and the `SSO_*` block in `.env.staging`, rebuild | `/api/v1/ready` = ready; `/api/v1/auth/sso/health` echoes Hub's endpoints |
+| 4 | FE server | `git pull`, rebuild `dist/` in the node container, recreate the web container | Served bundle hash matches your local build |
+| 5 | Browser | Open `http://test-ind-pm.kpndomain.com` | Login page shows **Continue with DWS Hub** above the email form |
+| 6 | Browser | Sign in through Hub with a user whose email exists in EngPro | Lands signed in; *Settings → Users* shows the account |
+| 7 | BE server | Confirm the linkage | `SELECT full_name, email, sso_subject FROM users WHERE sso_subject IS NOT NULL;` |
+
+Database migrations (`20260915_email_login`, `20260917_activation_and_reset`,
+`20260922_sso_subject`) apply automatically when the API container starts — no manual step, and
+re-running is safe.
+
+**Order matters for one reason**: `APP_BASE_URL` is what activation/reset emails and the SSO
+callback redirect are built from, and `CORS_ORIGIN` must equal the origin the browser uses. If the
+domain is not live yet, leave both on `http://172.28.92.56:3060` and switch them in the same pass
+as step 2 — never leave them disagreeing with how people actually reach the app.
 
 ---
 
