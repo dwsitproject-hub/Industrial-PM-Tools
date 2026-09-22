@@ -216,6 +216,11 @@ export class SsoService {
 
     if (!user) {
       if (!cfg.autoProvision || !email) {
+        // Logged so an operator can see exactly which address to put on the EngPro account.
+        this.log.warn(
+          `Refused Hub identity with no matching EngPro account — sub=${sub} email=${email || '(none sent)'} name=${name}. ` +
+          'Set this email on a user in Settings → Users, or enable SSO_AUTO_PROVISION.',
+        );
         throw new SsoError('not_registered',
           'No EngPro account matches this Hub identity. Ask a manager to add you in Settings → Users.');
       }
