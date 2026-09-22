@@ -5,6 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaService } from './prisma.service';
 import { AuditService } from './common/audit.service';
 import { MailService } from './common/mail.service';
+import { MailController } from './common/mail.controller';
 import { TokensService } from './auth/tokens.service';
 import { PermissionsService } from './common/permissions';
 import { JwtAuthGuard, PasswordChangeGuard, PermGuard, RolesGuard } from './common/guards';
@@ -34,7 +35,7 @@ import { HealthController } from './health/health.controller';
   ],
   controllers: [
     AuthController, UsersController, SitesController, WorkspaceController,
-    TicketsController, KpiController, AuditController, RolesController, SsoController, HealthController,
+    TicketsController, KpiController, AuditController, RolesController, SsoController, MailController, HealthController,
   ],
   providers: [
     PrismaService, AuditService, PermissionsService, EventsGateway, MailService, TokensService,

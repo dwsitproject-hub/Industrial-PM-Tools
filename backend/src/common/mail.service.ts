@@ -19,8 +19,15 @@ export class MailService {
   private readonly log = new Logger('MailService');
   private transporter: nodemailer.Transporter | null = null;
 
+  /** SMTP_FROM and MAIL_FROM are both accepted; falls back to the authenticated user. */
   private get from(): string {
-    return process.env.MAIL_FROM || 'EngPro <no-reply@engpro.local>';
+    return process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.SMTP_USER
+      || 'EngPro <no-reply@engpro.local>';
+  }
+
+  /** SMTP_PASSWORD is the common spelling; SMTP_PASS is kept for older configs. */
+  private get pass(): string | undefined {
+    return process.env.SMTP_PASSWORD || process.env.SMTP_PASS || undefined;
   }
 
   get configured(): boolean {
@@ -30,16 +37,36 @@ export class MailService {
   private getTransport(): nodemailer.Transporter | null {
     if (!this.configured) return null;
     if (!this.transporter) {
+      const port = parseInt(process.env.SMTP_PORT || '587', 10);
       this.transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587', 10),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: process.env.SMTP_USER
-          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-          : undefined,
+        port,
+        // 465 is implicit TLS; 587 starts plain and upgrades with STARTTLS
+        secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : port === 465,
+        auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: this.pass } : undefined,
+        // set SMTP_REJECT_UNAUTHORIZED=false only for a self-signed relay certificate
+        tls: { rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== 'false' },
+        connectionTimeout: 15_000,
+        greetingTimeout: 10_000,
       });
+      this.log.log(
+        `SMTP transport: ${process.env.SMTP_HOST}:${port} secure=${process.env.SMTP_SECURE ?? (port === 465)} ` +
+        `user=${process.env.SMTP_USER || '(none)'} from=${this.from}`,
+      );
     }
     return this.transporter;
+  }
+
+  /** Opens a connection and authenticates without sending anything. */
+  async verify(): Promise<MailResult> {
+    const transport = this.getTransport();
+    if (!transport) return { delivered: false, reason: 'SMTP is not configured (SMTP_HOST is empty)' };
+    try {
+      await transport.verify();
+      return { delivered: true };
+    } catch (e: any) {
+      return { delivered: false, reason: `${e?.code ? e.code + ': ' : ''}${e?.message ?? 'unknown error'}` };
+    }
   }
 
   async send(to: string, subject: string, text: string, html?: string): Promise<MailResult> {
@@ -56,8 +83,8 @@ export class MailService {
       this.log.log(`Sent "${subject}" to ${to}`);
       return { delivered: true };
     } catch (e: any) {
-      this.log.error(`Failed to send "${subject}" to ${to}: ${e?.message}`);
-      return { delivered: false, reason: `SMTP error: ${e?.message ?? 'unknown'}` };
+      this.log.error(`Failed to send "${subject}" to ${to}: ${e?.code || ''} ${e?.message}`);
+      return { delivered: false, reason: `SMTP ${e?.code || 'error'}: ${e?.message ?? 'unknown'}` };
     }
   }
 

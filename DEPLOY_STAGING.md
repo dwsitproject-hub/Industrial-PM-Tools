@@ -305,7 +305,7 @@ curl -s http://172.28.92.57:4010/api/v1/workspace   # shows "KPN Downstream-Esti
 | `COOKIE_SECURE` | `false` (staging is plain HTTP — `true` would break login) |
 | `WORKSPACE_TZ` | `Asia/Jakarta` |
 | `APP_BASE_URL` | `http://172.28.92.56:3060` — **activation / reset links are built from this**, so a wrong value emails links that go nowhere |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | your mail relay. Leave `SMTP_HOST` empty and the flows still work: the API logs the link and the manager sees it in *Settings → Users* to share manually |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_SECURE` `SMTP_USER` `SMTP_PASSWORD` `SMTP_FROM` | mail relay, e.g. `mail.energi-up.com:465` with `SMTP_SECURE=true` (implicit TLS). `SMTP_PASS`/`MAIL_FROM` are accepted as aliases. Add `SMTP_REJECT_UNAUTHORIZED=false` only for a self-signed relay certificate. Leave `SMTP_HOST` empty and the flows still work: the API logs the link and the manager sees it in *Settings → Users* to share manually |
 
 ---
 
@@ -491,6 +491,38 @@ cannot reach Hub — check the BE server's egress to `test-dwshub.kpndomain.com`
 Keeping auto-provisioning **off** means Hub access alone cannot create EngPro users: a manager
 still decides who exists and with which role. Password login keeps working alongside SSO, so a
 Hub outage never locks you out.
+
+---
+
+## 7d. Verify outbound email
+
+After filling in the `SMTP_*` values and recreating the API container, check delivery **before**
+inviting anyone — two manager-only endpoints do this without emailing a real user:
+
+```bash
+# on the BE server: sign in as a manager and keep the token
+TOKEN=$(curl -s -X POST http://172.28.92.57:4010/api/v1/auth/login   -H 'Content-Type: application/json'   -d '{"email":"<manager email>","password":"<password>"}' | sed -E 's/.*"accessToken":"([^"]+)".*//')
+
+# 1. connect + authenticate to the relay (sends nothing)
+curl -s http://172.28.92.57:4010/api/v1/mail/health -H "Authorization: Bearer $TOKEN"
+
+# 2. send yourself a real test message
+curl -s -X POST http://172.28.92.57:4010/api/v1/mail/test   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'   -d '{"to":"you@energi-up.com"}'
+```
+
+`health` returns `"ok": true` when the relay accepted the credentials; on failure `reason` carries
+the SMTP error code, which names the problem directly:
+
+| `reason` contains | Meaning |
+|---|---|
+| `EAUTH` | Wrong `SMTP_USER` / `SMTP_PASSWORD`, or the relay wants a different auth method |
+| `ESOCKET` / `ECONNECTION` | Port blocked from the BE server, or `SMTP_SECURE` disagrees with the port (465 = true, 587 = false) |
+| `ETIMEDOUT` | Egress to the relay is firewalled |
+| `self signed certificate` | Set `SMTP_REJECT_UNAUTHORIZED=false` |
+| `Mailbox unavailable` / `not permitted` | The relay refuses that `SMTP_FROM`; it usually must equal `SMTP_USER` |
+
+Once `mail/test` arrives, invitations and password resets send on their own — *Settings → Users*
+stops showing the fallback link and reports the email as sent instead.
 
 ---
 

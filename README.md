@@ -75,9 +75,14 @@ npm run test:e2e     # 103 tests (2 suites): auth, RBAC, roles matrix, numbering
 - Managers can *Resend activation* (pending) or *Send reset link* (active) per user.
 
 **Email is optional to get started.** With `SMTP_HOST` empty the API logs the message and the UI
-shows the manager the link to pass on by hand — the flows work, nothing fails silently. Configure
-`SMTP_*`, `MAIL_FROM` and **`APP_BASE_URL`** (the URL users browse to — the links are built from it)
-to send real mail.
+shows the manager the link to pass on by hand — the flows work, nothing fails silently.
+
+To send real mail set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`,
+`SMTP_FROM` (`SMTP_PASS`/`MAIL_FROM` also accepted) and **`APP_BASE_URL`** — the links are built
+from that, so it must be the URL people actually browse. Port 465 implies TLS, 587 uses STARTTLS;
+`SMTP_REJECT_UNAUTHORIZED=false` allows a self-signed relay certificate. Two manager-only
+endpoints verify the setup without emailing a user: `GET /api/v1/mail/health` (connect +
+authenticate) and `POST /api/v1/mail/test` (send a real message).
 
 ## Single sign-on (DWS Hub, strict OIDC)
 

@@ -39,7 +39,14 @@ services:
       COOKIE_SECURE: "false"
       PORT: "3000"
       APP_BASE_URL: http://localhost:8090
-      MAIL_FROM: EngPro <no-reply@engpro.local>
+      # SMTP via a local Mailpit catcher — uses the SAME variable names as staging
+      SMTP_HOST: host.docker.internal
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_USER: noreply.sys@energi-up.com
+      SMTP_PASSWORD: testpass123
+      SMTP_FROM: noreply.sys@energi-up.com
+      SMTP_REJECT_UNAUTHORIZED: "false"
       ACTIVATION_TTL_HOURS: "72"
       RESET_TTL_MINUTES: "60"
     depends_on:
