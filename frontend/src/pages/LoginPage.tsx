@@ -23,6 +23,7 @@ export default function LoginPage() {
       account_disabled: 'That account is disabled. Contact your manager.',
       access_denied: 'Sign-in was cancelled at DWS Hub.',
       state_mismatch: 'The sign-in attempt expired or was interrupted. Please try again.',
+      no_session: 'Start sign-in from this page (the button below) rather than from a Hub link, and make sure you are on http://test-ind-pm.kpndomain.com — the sign-in could not be matched to a session started here.',
       exchange_failed: 'Could not complete sign-in with DWS Hub. Try again, or use your email and password.',
       token_invalid: 'DWS Hub returned an identity that failed verification. Contact IT.',
       sso_disabled: 'Single sign-on is not enabled on this server.',

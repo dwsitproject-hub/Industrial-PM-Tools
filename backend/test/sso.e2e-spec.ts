@@ -298,7 +298,7 @@ describe('F20 DWS Hub SSO (OIDC authorization code + PKCE)', () => {
     const hubRes = await fetch(start.headers.location, { redirect: 'manual' });
     const back = new URL(hubRes.headers.get('location')!);
     const callback = await request(http_).get(`/api/v1/auth/sso/callback${back.search}`);  // no cookie jar
-    expect(errorOf(callback)).toBe('state_mismatch');
+    expect(errorOf(callback)).toBe('no_session');   // distinct from a tampered state
   });
 
   it('an authorization code cannot be replayed', async () => {

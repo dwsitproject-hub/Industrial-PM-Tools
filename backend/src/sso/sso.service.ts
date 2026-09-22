@@ -25,7 +25,7 @@ interface Discovery {
 
 /** Errors surfaced to the login page as ?sso_error=<code>; never leak internals to the browser. */
 export type SsoErrorCode =
-  | 'sso_disabled' | 'state_mismatch' | 'exchange_failed' | 'token_invalid'
+  | 'sso_disabled' | 'state_mismatch' | 'no_session' | 'exchange_failed' | 'token_invalid'
   | 'not_registered' | 'account_disabled' | 'server_error';
 
 export class SsoError extends Error {

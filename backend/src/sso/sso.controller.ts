@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Logger, Query, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Public } from '../common/auth.types';
 import { SsoError, SsoService } from './sso.service';
@@ -8,6 +8,8 @@ const REFRESH_COOKIE = 'engpro_rt';
 
 @Controller('auth/sso')
 export class SsoController {
+  private readonly log = new Logger('SsoController');
+
   constructor(private sso: SsoService) {}
 
   private appBase(): string {
@@ -43,6 +45,7 @@ export class SsoController {
         path: '/api/v1/auth/sso',
         maxAge: 10 * 60_000,
       });
+      this.log.log(`SSO flow started (state=${handoff.state.slice(0, 8)}…) -> ${url.split('?')[0]}`);
       return res.redirect(url);
     } catch (e: any) {
       const code = e instanceof SsoError ? e.code : 'server_error';
@@ -66,13 +69,36 @@ export class SsoController {
 
     if (error) return fail(error === 'access_denied' ? 'access_denied' : 'server_error');
 
-    let handoff: { state: string; verifier: string; nonce?: string; returnTo?: string };
+    const rawCookie = req.cookies?.[HANDOFF_COOKIE];
+    let handoff: { state: string; verifier: string; nonce?: string; returnTo?: string } | null = null;
     try {
-      handoff = JSON.parse(req.cookies?.[HANDOFF_COOKIE] || '');
+      handoff = rawCookie ? JSON.parse(rawCookie) : null;
     } catch {
+      handoff = null;
+    }
+
+    if (!handoff?.verifier) {
+      // The browser sent no handoff cookie: the flow was not started here, the callback landed on
+      // a different origin than /auth/sso/start, or the cookie was blocked.
+      this.log.warn(
+        `SSO callback without a handoff cookie. host=${req.headers.host} ` +
+        `cookies=[${Object.keys(req.cookies || {}).join(', ') || 'none'}] state=${state ? 'present' : 'absent'}. ` +
+        `Expected the browser to reach ${process.env.SSO_REDIRECT_URI} on the same origin it started on.`,
+      );
+      return fail('no_session');
+    }
+    if (!code) {
+      this.log.warn('SSO callback carried no authorization code');
+      return fail('server_error');
+    }
+    if (state && state !== handoff.state) {
+      this.log.warn(`SSO state mismatch: hub returned ${state.slice(0, 8)}…, expected ${handoff.state.slice(0, 8)}…`);
       return fail('state_mismatch');
     }
-    if (!code || !state || !handoff?.state || state !== handoff.state) return fail('state_mismatch');
+    if (!state) {
+      // state is optional in the Hub contract; PKCE + the handoff cookie still bind the exchange.
+      this.log.warn('Hub returned no state parameter — continuing on PKCE and the handoff cookie');
+    }
 
     try {
       const { accessToken, refreshToken } = await this.sso.completeLogin(
