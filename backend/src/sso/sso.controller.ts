@@ -4,6 +4,7 @@ import { Public } from '../common/auth.types';
 import { SsoError, SsoService } from './sso.service';
 
 const HANDOFF_COOKIE = 'engpro_sso';
+const RETRY_COOKIE = 'engpro_sso_retry';
 const REFRESH_COOKIE = 'engpro_rt';
 
 @Controller('auth/sso')
@@ -78,15 +79,32 @@ export class SsoController {
     }
 
     if (!handoff?.verifier) {
-      // The browser sent no handoff cookie: the flow was not started here, the callback landed on
-      // a different origin than /auth/sso/start, or the cookie was blocked.
+      // No handoff cookie: the authorization request was not built here, so we hold no PKCE
+      // verifier and cannot exchange this code. That is what a Hub-initiated launch looks like —
+      // Hub sends the browser straight to the callback. Restart the flow from our side once, which
+      // Hub satisfies silently because the user already has a Hub session.
+      const alreadyRetried = !!req.cookies?.[RETRY_COOKIE];
       this.log.warn(
         `SSO callback without a handoff cookie. host=${req.headers.host} ` +
-        `cookies=[${Object.keys(req.cookies || {}).join(', ') || 'none'}] state=${state ? 'present' : 'absent'}. ` +
-        `Expected the browser to reach ${process.env.SSO_REDIRECT_URI} on the same origin it started on.`,
+        `params=[${Object.keys(req.query || {}).join(', ') || 'none'}] ` +
+        `cookies=[${Object.keys(req.cookies || {}).join(', ') || 'none'}] retried=${alreadyRetried}`,
       );
+      if (code && !alreadyRetried) {
+        // The app itself must own the PKCE verifier, so begin our own authorization request.
+        res.cookie(RETRY_COOKIE, '1', {
+          httpOnly: true,
+          secure: process.env.COOKIE_SECURE === 'true',
+          sameSite: 'lax',
+          path: '/api/v1/auth/sso',
+          maxAge: 5 * 60_000,
+        });
+        this.log.log('Hub-initiated landing detected — restarting the flow from /auth/sso/start');
+        return res.redirect('/api/v1/auth/sso/start');
+      }
+      res.clearCookie(RETRY_COOKIE, { path: '/api/v1/auth/sso' });
       return fail('no_session');
     }
+    res.clearCookie(RETRY_COOKIE, { path: '/api/v1/auth/sso' });
     if (!code) {
       this.log.warn('SSO callback carried no authorization code');
       return fail('server_error');

@@ -480,6 +480,16 @@ curl -i http://test-dwshub.kpndomain.com/api/sso/bridge | head -1               
 `sso/health` must echo Hub's `token_endpoint` and `jwks_uri`. If it reports an error, the API
 cannot reach Hub — check the BE server's egress to `test-dwshub.kpndomain.com`.
 
+**Launching from the Hub dashboard.** EngPro is the OIDC client, so it must build the
+authorization request itself (it has to hold the PKCE verifier to complete the exchange). If Hub's
+launch sends the browser straight to the callback with a code it generated, EngPro detects that,
+restarts the flow from `/api/v1/auth/sso/start` and Hub satisfies it silently — the user just sees
+one extra redirect. To skip that hop, point the app's launch/landing URL in Hub Admin at:
+
+```
+http://test-ind-pm.kpndomain.com/api/v1/auth/sso/start
+```
+
 **How accounts line up.** Hub's `sub` is the canonical key:
 
 1. known `sub` → that EngPro user (works even if their email later changes);
@@ -615,6 +625,7 @@ as step 2 — never leave them disagreeing with how people actually reach the ap
 | `sso_error=not_registered` | The Hub identity has no EngPro account. Add the person in *Settings → Users* with the **same email** Hub sends, or set `SSO_AUTO_PROVISION=true` |
 | `sso_error=exchange_failed` | Hub rejected the code exchange: `redirect_uri` must match the registration **exactly**, `client_id` must be right, and the code is single-use. Check the API log — it records Hub's response body |
 | `sso_error=token_invalid` | `id_token` failed JWKS verification — usually a stale JWKS cache or an `iss`/`aud` mismatch (`SSO_ISSUER` must equal Hub's issuer, `SSO_CLIENT_ID` its audience) |
+| `sso_error=no_session` twice in a row | The browser is not keeping the handoff cookie, so the restart could not help either. Check that the whole journey stays on `http://test-ind-pm.kpndomain.com` (not the raw `:3060`) and that cookies are not blocked — the app needs them for sessions regardless |
 | `sso_error=state_mismatch` | The handoff cookie was lost: the browser must reach the app on **one** origin. Start at `http://test-ind-pm.kpndomain.com`, not the raw `:3060` |
 | Hub dashboard shows an enforcement message | The app is not registered with `sso_mode=oidc` in Hub Admin |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |

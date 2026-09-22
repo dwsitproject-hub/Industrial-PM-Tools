@@ -292,13 +292,50 @@ describe('F20 DWS Hub SSO (OIDC authorization code + PKCE)', () => {
     expect(errorOf(callback)).toBe('state_mismatch');
   });
 
-  it('a callback without the handoff cookie is rejected', async () => {
+  it('a callback arriving without the handoff cookie restarts rather than failing', async () => {
     const agent = request.agent(http_);
     const start = await agent.get('/api/v1/auth/sso/start');
     const hubRes = await fetch(start.headers.location, { redirect: 'manual' });
     const back = new URL(hubRes.headers.get('location')!);
     const callback = await request(http_).get(`/api/v1/auth/sso/callback${back.search}`);  // no cookie jar
-    expect(errorOf(callback)).toBe('no_session');   // distinct from a tampered state
+    expect(callback.status).toBe(302);
+    expect(callback.headers.location).toBe('/api/v1/auth/sso/start');
+  });
+
+  it('a Hub-initiated landing (code but no handoff cookie) restarts the flow and signs in', async () => {
+    const agent = request.agent(http_);
+    // Hub builds its own authorize request and drops the browser on our callback:
+    const hubRes = await fetch(
+      `${hubUrl}/api/sso/authorize?response_type=code&client_id=${CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(process.env.SSO_REDIRECT_URI!)}` +
+      '&code_challenge=hub-made-this-challenge&code_challenge_method=S256&state=hub-state',
+      { redirect: 'manual' },
+    );
+    const back = new URL(hubRes.headers.get('location')!);
+    const landing = await agent.get(`/api/v1/auth/sso/callback${back.search}`);
+    expect(landing.status).toBe(302);
+    expect(landing.headers.location).toBe('/api/v1/auth/sso/start');   // restarted, not refused
+    expect(String(landing.headers['set-cookie'])).toContain('engpro_sso_retry');
+
+    // following that restart completes normally
+    const { callback } = await ssoRoundTrip(agent);
+    expect(callback.headers.location).toBe('http://127.0.0.1:9/');
+  });
+
+  it('a second cookieless callback is refused instead of looping', async () => {
+    const agent = request.agent(http_);
+    const hubRes = await fetch(
+      `${hubUrl}/api/sso/authorize?response_type=code&client_id=${CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(process.env.SSO_REDIRECT_URI!)}` +
+      '&code_challenge=hub-made-this-challenge&code_challenge_method=S256&state=hub-state',
+      { redirect: 'manual' },
+    );
+    const back = new URL(hubRes.headers.get('location')!);
+    const first = await agent.get(`/api/v1/auth/sso/callback${back.search}`);
+    expect(first.headers.location).toBe('/api/v1/auth/sso/start');
+    // the retry cookie is now set; a second cookieless landing must stop, not bounce again
+    const second = await agent.get(`/api/v1/auth/sso/callback${back.search}`);
+    expect(errorOf(second)).toBe('no_session');
   });
 
   it('an authorization code cannot be replayed', async () => {
