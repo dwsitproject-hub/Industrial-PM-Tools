@@ -206,6 +206,16 @@ export class AuthService {
     return { ok: true, email: user.email };
   }
 
+  /** Issues an EngPro session for an already-authenticated identity (used by SSO). */
+  async issueSession(
+    user: { id: string; workspaceId: string; role: string; siteId: string | null; mustChangePassword: boolean },
+    userAgent?: string,
+  ) {
+    const accessToken = this.signAccess(user);
+    const refreshToken = await this.issueRefresh(user.id, randomUUID(), userAgent);
+    return { accessToken, refreshToken };
+  }
+
   async revokeAllForUser(userId: string) {
     await this.prisma.refreshToken.updateMany({
       where: { userId, revokedAt: null }, data: { revokedAt: new Date() },

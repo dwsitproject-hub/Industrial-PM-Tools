@@ -4,9 +4,11 @@
 
 | Component | Where | Address |
 |---|---|---|
-| Frontend (nginx + SPA) | FE server `StagingdwsFront` | `172.28.92.56` → port **3060** |
+| App URL | — | **http://test-ind-pm.kpndomain.com** |
+| Frontend (nginx + SPA) | FE server `StagingdwsFront` | `172.28.92.56` → port **3060** (behind the server's edge nginx/SLB) |
 | Backend (NestJS API) | BE server `StagingdwsBack` | `172.28.92.57` → port **4010** (bound to private IP) |
 | Database | ApsaraDB RDS PostgreSQL | `pgm-d9jx9o06qae8gf3h.pgsql.ap-southeast-5.rds.aliyuncs.com:5432` |
+| Identity | DWS Hub (OIDC) | `http://test-dwshub.kpndomain.com` |
 
 Ports **3060** (FE) and **4010** (BE) were chosen because they are free on both hosts
 (checked against the current `docker ps` on each server). No PostgreSQL container runs in
@@ -44,7 +46,7 @@ Repository: `git@github.com:dwsitproject-hub/Industrial-PM-Tools.git`
   - BE server: allow inbound TCP **4010** from **172.28.92.56/32 only** (the FE server). Do **not** expose 4010 publicly.
 - [ ] **ApsaraDB whitelist**: add the BE server (`172.28.92.57/32`, or your VPC vSwitch CIDR) to the RDS instance whitelist (console → the instance → *Data Security → Whitelist*).
 - [ ] RDS engine version is PostgreSQL **14 or newer** (16 recommended — local runs 16, and the data dump was taken with pg 16 tools).
-- [ ] Local machine: e2e suite green (`cd backend && npm run test:e2e` → 86 passed) and fresh SPA build (`cd frontend && npm run build`).
+- [ ] Local machine: e2e suite green (`cd backend && npm run test:e2e` → 103 passed) and fresh SPA build (`cd frontend && npm run build`).
 
 ---
 
@@ -389,6 +391,109 @@ Also confirm:
 
 ---
 
+## 7b. Publish on test-ind-pm.kpndomain.com
+
+The FE server already serves several apps, each on its own port, with something in front
+terminating the subdomains. EngPro keeps its own port (**3060**) and gains **one** virtual host —
+nothing about the existing apps changes.
+
+**First, find what terminates the existing subdomains** (run on the FE server):
+
+```bash
+systemctl is-active nginx 2>/dev/null; ss -tlnp | grep -E ':80 |:443 '
+grep -rl "server_name" /etc/nginx/conf.d/ /etc/nginx/sites-enabled/ 2>/dev/null | head
+```
+
+- **Host nginx answers on :80** → install the vhost:
+  ```bash
+  sudo cp /opt/industrial_pm/frontend/nginx/edge-vhost.conf.example /etc/nginx/conf.d/test-ind-pm.conf
+  grep -r connection_upgrade /etc/nginx/ | head -3      # must exist once at http{} level
+  sudo nginx -t && sudo systemctl reload nginx
+  ```
+- **An nginx container answers on :80** → mount the same file into its `conf.d` and reload it.
+- **Nothing listens on :80 (Alibaba SLB/ALB terminates)** → add a host rule in the console:
+  `test-ind-pm.kpndomain.com` → server group `172.28.92.56:3060`, forwarding the `Host` header
+  and allowing websocket upgrade on `/ws`.
+
+**DNS**: point `test-ind-pm.kpndomain.com` at the same address your other `test-*` subdomains use.
+
+Verify (FE server first, then a browser on the network):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: test-ind-pm.kpndomain.com' http://127.0.0.1/
+curl -s -H 'Host: test-ind-pm.kpndomain.com' http://127.0.0.1/api/v1/health
+```
+
+Both must answer (`200` and the health JSON). Then re-point the backend at the domain — these two
+values must be the URL people actually browse, or login cookies and emailed links break:
+
+```bash
+# BE server: /opt/industrial_pm/backend/.env.staging
+CORS_ORIGIN=http://test-ind-pm.kpndomain.com
+APP_BASE_URL=http://test-ind-pm.kpndomain.com
+```
+
+```bash
+cd /opt/industrial_pm/backend && docker compose -f docker-compose.staging.yml up -d --force-recreate
+```
+
+---
+
+## 7c. Single sign-on with DWS Hub
+
+EngPro implements the strict contract in `SSO-TARGET-APP-INTEGRATION.md`: authorization code +
+**PKCE S256**, JSON token exchange, and `id_token` verified against Hub's **JWKS** (`iss`, `aud`,
+`exp`, `sub` all enforced). The bridge flow is never used.
+
+**1. Register EngPro in Hub Admin** — the app will not start the flow without this:
+
+| Field | Value |
+|---|---|
+| `sso_mode` | `oidc` |
+| `oauth_client_id` | e.g. `engpro-staging` (note it for `.env.staging`) |
+| `oidc_redirect_uris` | `http://test-ind-pm.kpndomain.com/api/v1/auth/sso/callback` (exact match) |
+
+**2. Configure the backend** (`/opt/industrial_pm/backend/.env.staging`):
+
+```bash
+SSO_ENABLED=true
+SSO_ISSUER=http://test-dwshub.kpndomain.com
+SSO_CLIENT_ID=<oauth_client_id from Hub>
+SSO_REDIRECT_URI=http://test-ind-pm.kpndomain.com/api/v1/auth/sso/callback
+SSO_AUTO_PROVISION=false        # true = first Hub sign-in creates the account
+SSO_DEFAULT_ROLE=ESTIMATOR      # only used when auto-provisioning
+```
+
+```bash
+cd /opt/industrial_pm/backend && docker compose -f docker-compose.staging.yml up -d --force-recreate
+```
+
+**3. Check what the API resolved** (no secrets in the output):
+
+```bash
+curl -s http://test-ind-pm.kpndomain.com/api/v1/auth/sso/health
+curl -i http://test-dwshub.kpndomain.com/api/sso/jwks | head -1                      # expect 200
+curl -i http://test-dwshub.kpndomain.com/api/sso/.well-known/openid-configuration | head -1   # expect 200
+curl -i http://test-dwshub.kpndomain.com/api/sso/bridge | head -1                    # expect 410 in strict mode
+```
+
+`sso/health` must echo Hub's `token_endpoint` and `jwks_uri`. If it reports an error, the API
+cannot reach Hub — check the BE server's egress to `test-dwshub.kpndomain.com`.
+
+**How accounts line up.** Hub's `sub` is the canonical key:
+
+1. known `sub` → that EngPro user (works even if their email later changes);
+2. otherwise a **matching email** → the Hub subject is linked to that account, and a *pending
+   invitation is activated on the spot* (Hub has verified the person, so no activation email is
+   needed);
+3. otherwise → refused with *"not registered"* unless `SSO_AUTO_PROVISION=true`.
+
+Keeping auto-provisioning **off** means Hub access alone cannot create EngPro users: a manager
+still decides who exists and with which role. Password login keeps working alongside SSO, so a
+Hub outage never locks you out.
+
+---
+
 ## 8. Smoke-test checklist (10 minutes)
 
 | # | As | Do | Expect |
@@ -401,6 +506,9 @@ Also confirm:
 | 6 | site admin (e.g. `site.dumai@engpro.local`) | My site tickets → open one → move deadline | Only own site visible; deadline saves |
 | 7 | two browsers | Change a ticket in one | Other updates within ~1 s (websocket) |
 | 8 | manager | Settings → Audit trail | Login + ticket entries recorded |
+| 9 | any | Open `http://test-ind-pm.kpndomain.com` | App loads on the domain; other subdomains still work |
+| 10 | a Hub user | Click **Continue with DWS Hub** | Lands back signed in; Settings → Users shows the account linked |
+| 11 | a Hub user with no EngPro account | Same | Clear *"not registered"* message, no account created |
 
 ---
 
@@ -446,6 +554,11 @@ For data, use RDS point-in-time restore.
 | API logs `P1001: Can't reach database server` | BE server IP missing from the RDS whitelist, or wrong host/password in `DATABASE_URL` |
 | `permission denied to create extension "pg_trgm"` / `permission denied for schema public` | The account is a *standard* RDS account. Re-run as the instance's **privileged** account (`postgres`) — see step 1.1. Nothing is half-written when this happens: every statement fails, so the database is still empty and a plain re-run is safe |
 | Login page says **Username** / "Invalid username or password" after the email switch | The FE server is serving a stale SPA build. `git pull` on the FE server, rebuild `dist/` (step 6), restart the web container, then hard-refresh the browser |
+| `sso_error=not_registered` | The Hub identity has no EngPro account. Add the person in *Settings → Users* with the **same email** Hub sends, or set `SSO_AUTO_PROVISION=true` |
+| `sso_error=exchange_failed` | Hub rejected the code exchange: `redirect_uri` must match the registration **exactly**, `client_id` must be right, and the code is single-use. Check the API log — it records Hub's response body |
+| `sso_error=token_invalid` | `id_token` failed JWKS verification — usually a stale JWKS cache or an `iss`/`aud` mismatch (`SSO_ISSUER` must equal Hub's issuer, `SSO_CLIENT_ID` its audience) |
+| `sso_error=state_mismatch` | The handoff cookie was lost: the browser must reach the app on **one** origin. Start at `http://test-ind-pm.kpndomain.com`, not the raw `:3060` |
+| Hub dashboard shows an enforcement message | The app is not registered with `sso_mode=oidc` in Hub Admin |
 | Login succeeds but immediately bounces back to login | `COOKIE_SECURE=true` on plain HTTP — must be `false` in staging |
 | Header dot stays **Offline** | `/ws` proxy block missing/misconfigured in nginx, or security group blocks the FE→BE connection |
 | `could not translate host name "-U" to address` | `RDS_HOST` is empty in this shell, so `-h` consumed the next flag — or you are on the **FE server**, which has no DB access. Run DB commands on the BE server. Re-export it, or use the `.env.staging` form shown in step 7 (`--env-file .env.staging` + `psql "${DATABASE_URL%%\?*}"`) |

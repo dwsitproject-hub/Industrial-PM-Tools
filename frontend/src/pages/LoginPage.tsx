@@ -15,6 +15,28 @@ export default function LoginPage() {
   const [newPw2, setNewPw2] = useState('');
   const mustChange = mustChangeLocal || !!profile?.user.mustChangePassword;
 
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('sso_error');
+    if (!code) return;
+    const messages: Record<string, string> = {
+      not_registered: 'Your DWS Hub account is not registered in EngPro yet. Ask a manager to add you in Settings → Users.',
+      account_disabled: 'That account is disabled. Contact your manager.',
+      access_denied: 'Sign-in was cancelled at DWS Hub.',
+      state_mismatch: 'The sign-in attempt expired or was interrupted. Please try again.',
+      exchange_failed: 'Could not complete sign-in with DWS Hub. Try again, or use your email and password.',
+      token_invalid: 'DWS Hub returned an identity that failed verification. Contact IT.',
+      sso_disabled: 'Single sign-on is not enabled on this server.',
+    };
+    setError(messages[code] || 'Single sign-on failed. Try again, or use your email and password.');
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
+
+  const { data: sso } = useQuery({
+    queryKey: ['sso-config'],
+    queryFn: () => api.get('/api/v1/auth/sso/config'),
+    staleTime: Infinity,
+  });
+
   const { data: ws } = useQuery({
     queryKey: ['branding'],
     queryFn: () => api.get('/api/v1/workspace'),
@@ -65,6 +87,19 @@ export default function LoginPage() {
           <form onSubmit={submit}>
             <div className="auth-title">Sign in</div>
             <div className="auth-sub">Sign in with your work email address.</div>
+            {sso?.enabled && (
+              <>
+                <button type="button" className="btn btn-accent btn-full"
+                  onClick={() => { window.location.href = '/api/v1/auth/sso/start'; }}>
+                  {sso.buttonLabel || 'Continue with DWS Hub'}
+                </button>
+                <div className="flex gap8 mt12 mb12" style={{ color: 'var(--hint)' }}>
+                  <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                  <span className="fs11">or sign in with email</span>
+                  <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                </div>
+              </>
+            )}
             <div className="field">
               <label>Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}

@@ -9,6 +9,8 @@ import { TokensService } from './auth/tokens.service';
 import { PermissionsService } from './common/permissions';
 import { JwtAuthGuard, PasswordChangeGuard, PermGuard, RolesGuard } from './common/guards';
 import { RolesController } from './roles/roles.controller';
+import { SsoController } from './sso/sso.controller';
+import { SsoService } from './sso/sso.service';
 import { EventsGateway } from './events/events.gateway';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
@@ -32,11 +34,11 @@ import { HealthController } from './health/health.controller';
   ],
   controllers: [
     AuthController, UsersController, SitesController, WorkspaceController,
-    TicketsController, KpiController, AuditController, RolesController, HealthController,
+    TicketsController, KpiController, AuditController, RolesController, SsoController, HealthController,
   ],
   providers: [
     PrismaService, AuditService, PermissionsService, EventsGateway, MailService, TokensService,
-    AuthService, UsersService, TicketsService, KpiService,
+    AuthService, UsersService, TicketsService, KpiService, SsoService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PasswordChangeGuard },
     { provide: APP_GUARD, useClass: RolesGuard },

@@ -60,7 +60,7 @@ cd frontend && npm run dev      # Vite dev server on :5173, proxies /api and /ws
 #   then: docker exec engpro-dev-db psql -U engpro -d postgres -c "CREATE DATABASE industrial_pm_test;"
 cd backend
 DATABASE_URL=postgresql://engpro:engpro@localhost:5439/industrial_pm_test npx prisma migrate deploy
-npm run test:e2e     # 86 tests: auth, RBAC, roles matrix, numbering race, locking, KPI engine, audit
+npm run test:e2e     # 103 tests (2 suites): auth, RBAC, roles matrix, numbering race, locking, KPI engine, audit
 ```
 
 ## Accounts: email activation & self-service password reset
@@ -78,6 +78,20 @@ npm run test:e2e     # 86 tests: auth, RBAC, roles matrix, numbering race, locki
 shows the manager the link to pass on by hand — the flows work, nothing fails silently. Configure
 `SMTP_*`, `MAIL_FROM` and **`APP_BASE_URL`** (the URL users browse to — the links are built from it)
 to send real mail.
+
+## Single sign-on (DWS Hub, strict OIDC)
+
+`Continue with DWS Hub` on the login page runs authorization code + **PKCE S256**, exchanges the
+code at Hub's JSON token endpoint and verifies the `id_token` against Hub's **JWKS** (`iss`, `aud`,
+`exp`, `sub` enforced). Hub's `sub` is the canonical identity: a known subject signs straight in, a
+matching **email** links the account (activating a pending invitation), and an unknown identity is
+refused unless `SSO_AUTO_PROVISION=true`. Password login keeps working, so a Hub outage is not a
+lockout. Config: `SSO_ENABLED`, `SSO_ISSUER`, `SSO_CLIENT_ID`, `SSO_REDIRECT_URI`,
+`SSO_AUTO_PROVISION`, `SSO_DEFAULT_ROLE`; `GET /api/v1/auth/sso/health` reports what was resolved.
+
+Covered by `backend/test/sso.e2e-spec.ts`, which runs the whole flow against a stand-in Hub
+(RS256 + JWKS): round trip, subject linking, pending activation, CSRF/state, code replay,
+wrong audience and wrong issuer.
 
 ## Configurable role permissions (Settings → Roles)
 

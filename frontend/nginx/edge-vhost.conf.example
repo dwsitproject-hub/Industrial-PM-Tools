@@ -1,0 +1,45 @@
+# EngPro / Industrial PM — edge virtual host for the FE server (172.28.92.56)
+#
+# The FE server already hosts several apps, each published on its own port. This file adds
+# ONE name-based virtual host that forwards test-ind-pm.kpndomain.com to EngPro's container
+# (127.0.0.1:3060) and leaves every other subdomain untouched.
+#
+# Install on the FE server, into whichever nginx terminates the existing subdomains:
+#   sudo cp edge-vhost.conf.example /etc/nginx/conf.d/test-ind-pm.conf
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# If the edge is an nginx *container* instead, mount this file into its conf.d and reload it.
+# If the subdomains are terminated by an Alibaba SLB/ALB, add a host rule there:
+#   host = test-ind-pm.kpndomain.com  ->  backend server group 172.28.92.56:3060
+# (the ALB must forward the Host header and allow websocket upgrade for /ws)
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name test-ind-pm.kpndomain.com;
+
+    # EngPro's own nginx serves the SPA and proxies /api + /ws onward to the backend server,
+    # so the edge only has to forward everything to it — and keep the Host header intact.
+    location / {
+        proxy_pass http://127.0.0.1:3060;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # realtime board updates (socket.io) travel over /ws
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 600s;
+    }
+}
+
+# `$connection_upgrade` must exist once at http{} level. If your nginx.conf does not define it
+# already (check with: grep -r connection_upgrade /etc/nginx/), add this file to /etc/nginx/conf.d/
+# as well — a duplicate map directive is an error, so only add it if it is missing:
+#
+# map $http_upgrade $connection_upgrade {
+#     default upgrade;
+#     ''      close;
+# }
