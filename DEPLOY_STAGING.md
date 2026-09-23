@@ -586,6 +586,19 @@ For data, use RDS point-in-time restore.
 
 ---
 
+## 9a. Security hardening release (commit 36ca5f8)
+
+That release adds three migrations, changes the login contract and introduces new environment
+variables. It has its own ordered runbook with the checks that matter:
+
+**→ `deploy-security-upgrade.md`**
+
+Two things to know before you start: deploy the **backend first** (the login contract
+changed), and do **not** set `DEPLOY_ENV=production` on staging — staging is plain HTTP and
+production mode deliberately refuses to boot without TLS.
+
+---
+
 ## 9b. Rollout checklist — domain + SSO release
 
 Do these in order. Steps 1–2 are prerequisites: the app reads its own URL from config, so
