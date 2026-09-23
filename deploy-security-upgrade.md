@@ -160,8 +160,13 @@ cd /opt/industrial_pm/frontend && ls -la dist/index.html && grep -o 'assets/inde
 
 Now verify what is actually being served, and that the headers arrive through the edge:
 
+> Address the edge by **`Host:` header against 127.0.0.1**, not by the domain name. The
+> servers do not resolve `test-ind-pm.kpndomain.com` — only your workstation does — so
+> curling the domain from the server returns nothing at all, which looks exactly like
+> "the headers are missing" when it actually means "the request never happened".
+
 ```bash
-curl -s http://localhost:3060/ | grep -o 'assets/index-[^"]*\.js' && curl -sI http://test-ind-pm.kpndomain.com/ | grep -iE 'content-security-policy|x-frame-options|referrer-policy'
+curl -s -D - -o /dev/null -H 'Host: test-ind-pm.kpndomain.com' http://127.0.0.1/ | grep -iE 'HTTP/|content-security-policy|x-frame-options|referrer-policy'
 ```
 
 The bundle hash must match the one `dist/index.html` reports, and all three headers must be
