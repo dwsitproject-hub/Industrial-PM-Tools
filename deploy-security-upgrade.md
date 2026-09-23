@@ -132,24 +132,46 @@ docker run --rm --env-file /opt/industrial_pm/backend/.env.staging postgres:16-a
 
 ## 5. Frontend: deploy (immediately after the backend)
 
-On the **FE server (172.28.92.56)**:
+On the **FE server (172.28.92.56)**.
+
+> **`docker compose --build` does nothing here.** The frontend compose has no build section:
+> it mounts `./dist` and `./nginx/staging.conf` into a stock nginx image. `dist/` is
+> git-ignored, so `git pull` does **not** update the SPA — it has to be built explicitly. And
+> because only a mounted file changed (not the compose definition), `up -d` considers the
+> container current and leaves nginx running with its old config in memory. Hence the
+> explicit build and `--force-recreate` below.
 
 ```bash
 cd /opt/industrial_pm && git pull
-cd frontend && docker compose -f docker-compose.staging.yml up -d --build
 ```
 
-Confirm the new bundle is actually being served, and that the Content-Security-Policy
-arrived:
+Build the SPA inside a container — no Node needed on the host:
 
 ```bash
-curl -s http://localhost:3060/ | grep -o 'assets/index-[^"]*\.js'
-curl -sI http://test-ind-pm.kpndomain.com/ | grep -i -E 'content-security-policy|x-frame-options'
+cd /opt/industrial_pm/frontend && docker run --rm -v /opt/industrial_pm/frontend:/app -w /app node:20-bookworm-slim sh -c "npm ci --no-audit --no-fund && npm run build"
 ```
+
+Confirm the build produced the new bundle, then recreate the container so nginx re-reads the
+config that carries the Content-Security-Policy:
+
+```bash
+cd /opt/industrial_pm/frontend && ls -la dist/index.html && grep -o 'assets/index-[^"]*\.js' dist/index.html && docker compose -f docker-compose.staging.yml up -d --force-recreate
+```
+
+Now verify what is actually being served, and that the headers arrive through the edge:
+
+```bash
+curl -s http://localhost:3060/ | grep -o 'assets/index-[^"]*\.js' && curl -sI http://test-ind-pm.kpndomain.com/ | grep -iE 'content-security-policy|x-frame-options|referrer-policy'
+```
+
+The bundle hash must match the one `dist/index.html` reports, and all three headers must be
+present. If the headers are missing but the bundle is right, nginx did not reload — recreate
+the container again.
 
 Then **hard-refresh the browser (Ctrl+Shift+R)** — assets are cached `immutable` for a year.
 
 ---
+
 
 ## 6. Verify TRUST_PROXY — the check people skip
 
