@@ -103,13 +103,14 @@ staging** — they are the checks that would abort a production boot, shown as w
 
 Still on the BE server:
 
+> **Do not `source` this env file.** Several values contain unquoted spaces
+> (`SSO_SCOPE=openid profile email`, `SSO_BUTTON_LABEL=Continue with DWS Hub`,
+> `MFA_ISSUER=EngPro Staging`), so `. ./.env.staging` sets the first word and then tries to
+> run the rest as commands — `profile: command not found`. Docker’s `--env-file` does not
+> shell-parse, so pass the file to the container instead:
+
 ```bash
-set -a; . ./.env.staging; set +a
-docker run --rm postgres:16-alpine psql "${DATABASE_URL%%\?*}" -c "
-  SELECT c.name, c.is_internal,
-         (SELECT count(*) FROM users   u WHERE u.company_id = c.id) AS users,
-         (SELECT count(*) FROM tickets t WHERE t.company_id = c.id) AS tickets
-  FROM companies c;"
+docker run --rm --env-file /opt/industrial_pm/backend/.env.staging postgres:16-alpine sh -c 'psql "${DATABASE_URL%%\?*}" -c "SELECT c.name, c.is_internal, (SELECT count(*) FROM users u WHERE u.company_id=c.id) AS users, (SELECT count(*) FROM tickets t WHERE t.company_id=c.id) AS tickets FROM companies c;"'
 ```
 
 Expect **one row**, `is_internal = t`, named after your workspace, with roughly **24 users**
@@ -118,17 +119,13 @@ and **226 tickets**.
 Then confirm nothing was left behind:
 
 ```bash
-docker run --rm postgres:16-alpine psql "${DATABASE_URL%%\?*}" -tc \
-  "SELECT count(*) FROM users WHERE company_id IS NULL AND is_active;"
+docker run --rm --env-file /opt/industrial_pm/backend/.env.staging postgres:16-alpine sh -c 'psql "${DATABASE_URL%%\?*}" -tc "SELECT count(*) FROM users WHERE company_id IS NULL AND is_active;"'
 ```
 
 **Must be `0`.** Anything else means those accounts will see an empty application. Fix with:
 
 ```bash
-docker run --rm postgres:16-alpine psql "${DATABASE_URL%%\?*}" -c "
-  UPDATE users u SET company_id = c.id
-  FROM companies c
-  WHERE c.workspace_id = u.workspace_id AND c.is_internal AND u.company_id IS NULL;"
+docker run --rm --env-file /opt/industrial_pm/backend/.env.staging postgres:16-alpine sh -c 'psql "${DATABASE_URL%%\?*}" -c "UPDATE users u SET company_id = c.id FROM companies c WHERE c.workspace_id = u.workspace_id AND c.is_internal AND u.company_id IS NULL;"'
 ```
 
 ---
