@@ -19,11 +19,21 @@ export interface Perms {
   pages: Record<string, PagePerms>;
 }
 
+/**
+ * AR-04: a correct password on an MFA-protected account returns a short-lived challenge
+ * rather than a session, so the caller has to complete the second factor before anything
+ * usable exists.
+ */
+export type LoginResult =
+  | { kind: 'profile'; profile: Profile }
+  | { kind: 'mfa'; mfaToken: string };
+
 interface AuthCtx {
   profile: Profile | null;
   perms: Perms | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<Profile>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  completeMfa: (mfaToken: string, code: string) => Promise<Profile>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -62,14 +72,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api.post<any>('/api/v1/auth/login', { email, password });
+  const adopt = useCallback(async (res: any): Promise<Profile> => {
     setAccessToken(res.accessToken);
     const p: Profile = { user: res.user, workspace: res.workspace };
     if (!res.user.mustChangePassword) setPerms(await api.get<Perms>('/api/v1/roles/me'));
     setProfile(p);
     return p;
   }, []);
+
+  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
+    const res = await api.post<any>('/api/v1/auth/login', { email, password });
+    if (res.mfaRequired) return { kind: 'mfa', mfaToken: res.mfaToken };
+    return { kind: 'profile', profile: await adopt(res) };
+  }, [adopt]);
+
+  const completeMfa = useCallback(async (mfaToken: string, code: string) => {
+    const res = await api.post<any>('/api/v1/auth/mfa/verify', { mfaToken, code });
+    return adopt(res);
+  }, [adopt]);
 
   const logout = useCallback(async () => {
     try { await api.post('/api/v1/auth/logout'); } catch { /* ignore */ }
@@ -91,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ profile, perms, loading, login, logout, changePassword, refreshProfile, refreshPerms: loadPerms }}>
+    <Ctx.Provider value={{ profile, perms, loading, login, completeMfa, logout, changePassword, refreshProfile, refreshPerms: loadPerms }}>
       {children}
     </Ctx.Provider>
   );

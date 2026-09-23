@@ -15,8 +15,16 @@ import SettingsPage from './pages/SettingsPage';
 import { ForgotPasswordPage, TokenPasswordPage } from './pages/TokenPages';
 
 const SETTINGS_KEYS = ['stUsers', 'stSites', 'stWorkspace', 'stRoles', 'stAudit'];
+/** True when the user can see at least one ADMINISTRATIVE settings section. */
 export const anySettings = (perms: Perms | null) =>
   SETTINGS_KEYS.some((k) => perms?.pages?.[k]?.view === true);
+
+/**
+ * The Settings page is always reachable: it now holds the Security tab, where every user
+ * manages their own two-factor authentication (AR-04). Which tabs appear inside is still
+ * governed by the role matrix.
+ */
+export const canOpenSettings = (_perms: Perms | null) => true;
 
 export function homeFor(perms: Perms | null, role: string): string {
   const has = (r: string) => perms?.pages?.[r]?.view === true;
@@ -88,7 +96,7 @@ export default function App() {
         <Route path="/site/my-tickets" element={<Guard ok={p('ticketsMy')}><MyTicketsPage /></Guard>} />
         <Route path="/kpi" element={<Guard ok={p('kpi')}><KpiPage /></Guard>} />
         <Route path="/kpi/me" element={<Guard ok={p('kpiMe')}><MyKpiPage /></Guard>} />
-        <Route path="/settings" element={<Guard ok={anySettings(perms)}><SettingsPage /></Guard>} />
+        <Route path="/settings" element={<Guard ok={canOpenSettings(perms)}><SettingsPage /></Guard>} />
         <Route path="*" element={<Navigate to={home} replace />} />
       </Route>
     </Routes>

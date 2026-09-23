@@ -9,6 +9,7 @@ import { Transform } from 'class-transformer';
 import { Request } from 'express';
 import { CurrentUser, JwtUser, RequirePerm } from '../common/auth.types';
 import { UsersService } from './users.service';
+import { ServiceScoped } from '../common/route-policy';
 
 class CreateUserDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
@@ -19,6 +20,9 @@ class CreateUserDto {
   username?: string;
   @IsIn(['MANAGER', 'ADMIN', 'SITE_ADMIN', 'ESTIMATOR']) role!: string;
   @IsOptional() @IsUUID() siteId?: string;
+  /** AR-03: which company the account belongs to. Ignored for external actors, who can
+   *  only ever create inside their own. */
+  @IsOptional() @IsUUID() companyId?: string;
   @IsOptional() @IsInt() @Min(0) @Max(8) avatarColor?: number;
 }
 class UpdateUserDto {
@@ -27,6 +31,7 @@ class UpdateUserDto {
   @IsEmail({}, { message: 'A valid email address is required' }) @MaxLength(200) email?: string;
   @IsOptional() @IsIn(['MANAGER', 'ADMIN', 'SITE_ADMIN', 'ESTIMATOR']) role?: string;
   @IsOptional() @IsUUID() siteId?: string;
+  @IsOptional() @IsUUID() companyId?: string;
   @IsOptional() @IsInt() @Min(0) @Max(8) avatarColor?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
@@ -35,6 +40,7 @@ class UpdateUserDto {
 export class UsersController {
   constructor(private users: UsersService) {}
 
+  @ServiceScoped('full records need stUsers.view; everyone else gets the name/avatar directory used by pickers')
   @Get()
   async list(@CurrentUser() user: JwtUser, @Query('role') role?: string, @Query('active') active?: string) {
     return this.users.list(user, role, active);

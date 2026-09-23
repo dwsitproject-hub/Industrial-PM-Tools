@@ -8,7 +8,9 @@ import {
 import { Type } from 'class-transformer';
 import { Request, Response } from 'express';
 import { CurrentUser, JwtUser, RequirePerm } from '../common/auth.types';
+import { Heavy } from '../common/throttle';
 import { KpiService } from './kpi.service';
+import { ServiceScoped } from '../common/route-policy';
 
 class SettingsDto {
   @IsInt() @Min(0) @Max(100) pointOpening!: number;
@@ -37,6 +39,7 @@ class ManualEntryDto {
 export class KpiController {
   constructor(private kpi: KpiService) {}
 
+  @ServiceScoped('scoring parameters are workspace-wide and read-only here')
   @Get('settings')
   getSettings(@CurrentUser() user: JwtUser) {
     return this.kpi.getSettings(user.ws);
@@ -48,6 +51,8 @@ export class KpiController {
     return this.kpi.putSettings(user, dto, req.ip);
   }
 
+  @ServiceScoped('kpi.view sees the team; everyone else sees only their own row')
+  @Heavy()
   @Get('summary')
   summary(@CurrentUser() user: JwtUser, @Query('year') year?: string, @Query('month') month?: string) {
     const y = parseInt(year || '', 10) || new Date().getFullYear();
@@ -56,6 +61,8 @@ export class KpiController {
     return this.kpi.summary(user, y, m);
   }
 
+  @ServiceScoped('kpi.view sees the team; everyone else sees only their own entries')
+  @Heavy()
   @Get('entries')
   entries(
     @CurrentUser() user: JwtUser,
@@ -82,6 +89,7 @@ export class KpiController {
     return this.kpi.addManual(user, dto, req.ip);
   }
 
+  @Heavy()
   @RequirePerm('kpi', 'view')
   @Get('export')
   async export(@CurrentUser() user: JwtUser, @Query('year') year: string, @Res() res: Response) {

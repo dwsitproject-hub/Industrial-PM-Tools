@@ -35,9 +35,18 @@ services:
       REFRESH_TTL_DAYS: "7"
       CORS_ORIGIN: http://localhost:8090
       WORKSPACE_TZ: Asia/Jakarta
-      THROTTLE_LIMIT: "5"
       COOKIE_SECURE: "false"
       PORT: "3000"
+      # ── security hardening (see SECURITY_HARDENING.md) ──
+      DEPLOY_ENV: local
+      TRUST_PROXY: "1"            # browser -> engpro-web nginx -> api
+      THROTTLE_LIMIT: "5"
+      THROTTLE_GLOBAL: "300"
+      THROTTLE_HEAVY: "120"
+      LOCKOUT_THRESHOLD: "10"
+      LOCKOUT_MINUTES: "15"
+      MFA_POLICY: optional
+      MFA_ISSUER: EngPro Local
       APP_BASE_URL: http://localhost:8090
       # SMTP via a local Mailpit catcher — uses the SAME variable names as staging
       SMTP_HOST: host.docker.internal

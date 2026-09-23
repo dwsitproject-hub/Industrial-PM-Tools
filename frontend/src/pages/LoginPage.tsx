@@ -5,7 +5,7 @@ import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 
 export default function LoginPage() {
-  const { login, changePassword, logout, profile } = useAuth();
+  const { login, completeMfa, changePassword, logout, profile } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -13,6 +13,8 @@ export default function LoginPage() {
   const [mustChangeLocal, setMustChange] = useState(false);
   const [newPw, setNewPw] = useState('');
   const [newPw2, setNewPw2] = useState('');
+  const [mfaToken, setMfaToken] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
   const mustChange = mustChangeLocal || !!profile?.user.mustChangePassword;
 
   useEffect(() => {
@@ -48,13 +50,31 @@ export default function LoginPage() {
     e.preventDefault();
     setError(''); setBusy(true);
     try {
-      const p = await login(email.trim(), password);
-      if (p.user.mustChangePassword) setMustChange(true);
+      const res = await login(email.trim(), password);
+      if (res.kind === 'mfa') { setMfaToken(res.mfaToken); setPassword(''); return; }
+      if (res.profile.user.mustChangePassword) setMustChange(true);
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute and try again.');
-      else if (err instanceof ApiError && err.body?.error === 'AccountNotActivated') setError(err.body.message);
       else if (err instanceof ApiError && err.status === 400) setError('Enter a valid email address.');
+      // AR-05: the server no longer distinguishes unknown, wrong and not-yet-activated
+      // accounts, so neither does this message.
       else setError('Invalid email or password.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitMfa(e: FormEvent) {
+    e.preventDefault();
+    setError(''); setBusy(true);
+    try {
+      const p = await completeMfa(mfaToken, mfaCode.trim());
+      if (p.user.mustChangePassword) { setMfaToken(''); setMustChange(true); }
+    } catch (err: any) {
+      if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute and try again.');
+      else if (err instanceof ApiError && err.status === 401 && /expired/i.test(err.body?.message || '')) {
+        setMfaToken(''); setError('That sign-in attempt expired. Please sign in again.');
+      } else setError('That code is not right. Check your authenticator app and try again.');
     } finally {
       setBusy(false);
     }
@@ -84,7 +104,29 @@ export default function LoginPage() {
             <div className="fs11 c-hint mono">{ws?.subtitle || 'Estimation Management System'}</div>
           </div>
         </div>
-        {!mustChange ? (
+        {mfaToken ? (
+          <form onSubmit={submitMfa}>
+            <div className="auth-title">Two-factor authentication</div>
+            <div className="auth-sub">
+              Enter the 6-digit code from your authenticator app. If you have lost your phone,
+              use one of the backup codes you saved when you set this up.
+            </div>
+            <div className="field">
+              <label>Authentication code</label>
+              <input value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} autoFocus
+                inputMode="numeric" autoComplete="one-time-code" placeholder="123456"
+                className="mono" maxLength={20} />
+            </div>
+            {error && <div className="field-hint c-red mb8">{error}</div>}
+            <button className="btn btn-primary btn-full" disabled={busy || mfaCode.trim().length < 6}>
+              {busy ? 'Verifying…' : 'Verify and sign in'}
+            </button>
+            <button type="button" className="btn btn-outline btn-full mt8"
+              onClick={() => { setMfaToken(''); setMfaCode(''); setError(''); }}>
+              Back
+            </button>
+          </form>
+        ) : !mustChange ? (
           <form onSubmit={submit}>
             <div className="auth-title">Sign in</div>
             <div className="auth-sub">Sign in with your work email address.</div>
@@ -118,6 +160,10 @@ export default function LoginPage() {
               <Link to="/forgot-password" className="fs12 c-muted" style={{ textDecoration: 'underline' }}>
                 Forgot your password?
               </Link>
+              <div className="fs11 c-hint mt8">
+                Just been invited and cannot sign in yet? Use the same link — it will send your
+                activation email again.
+              </div>
             </div>
           </form>
         ) : (

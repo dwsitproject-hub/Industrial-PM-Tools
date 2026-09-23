@@ -83,6 +83,15 @@ async function main() {
     },
   });
 
+  // ---- internal company (AR-03) ----
+  // Every workspace has exactly one INTERNAL company: the organisation itself. Its users are
+  // unscoped. External firms are added later in Settings -> Companies, and their users are
+  // hard-scoped to their own records. A user with no company is treated as external and sees
+  // nothing, so the seed must attribute everything it creates.
+  const internalCompany = await prisma.company.create({
+    data: { workspaceId: PROD_WS, name: lw.company, isInternal: true },
+  });
+
   // ---- kpi settings ----
   const ls = lSettings[0];
   await prisma.kpiSettings.create({
@@ -100,7 +109,8 @@ async function main() {
 
   const manager = await prisma.user.create({
     data: {
-      workspaceId: PROD_WS, username: 'manager', email: emailFor('manager'),
+      workspaceId: PROD_WS, companyId: internalCompany.id,
+      username: 'manager', email: emailFor('manager'),
       fullName: 'Estimation Manager',
       role: 'MANAGER', passwordHash: managerHash, avatarColor: 0, mustChangePassword: false,
     },
@@ -111,7 +121,7 @@ async function main() {
     const role = m.role === 'admin' ? 'ADMIN' : 'ESTIMATOR';
     const user = await prisma.user.create({
       data: {
-        id: m.id, workspaceId: PROD_WS,
+        id: m.id, workspaceId: PROD_WS, companyId: internalCompany.id,
         username: m.name.toLowerCase().replace(/\s+/g, '_'),
         email: emailFor(m.name.replace(/\s+/g, '_')),
         fullName: m.name, role: role as any,
@@ -136,7 +146,8 @@ async function main() {
     siteNameToId.set(s.site_name, site.id);
     const su = await prisma.user.create({
       data: {
-        workspaceId: PROD_WS, username: `site.${slug(s.site_name)}`,
+        workspaceId: PROD_WS, companyId: internalCompany.id,
+        username: `site.${slug(s.site_name)}`,
         email: emailFor(`site.${slug(s.site_name)}`),
         fullName: `${s.site_name} Site Admin`, role: 'SITE_ADMIN', siteId: site.id,
         avatarColor: parseInt(s.color, 10) || 3,
@@ -185,7 +196,7 @@ async function main() {
       : null;
     await prisma.ticket.create({
       data: {
-        id: t.id, workspaceId: PROD_WS,
+        id: t.id, workspaceId: PROD_WS, companyId: internalCompany.id,
         ticketNo: fn.no, legacyTicketNo: fn.legacy,
         name: t.name.length < 3 ? t.name.padEnd(3, '.') : t.name.slice(0, 200),
         type: TYPE_MAP[t.type] as any,

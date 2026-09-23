@@ -1,11 +1,13 @@
 import { Controller, Get, Logger, Query, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Public } from '../common/auth.types';
+import {
+  setRefreshCookie, ssoHandoffCookieOptions,
+  SSO_HANDOFF_COOKIE as HANDOFF_COOKIE, SSO_RETRY_COOKIE as RETRY_COOKIE, SSO_PATH,
+} from '../common/cookies';
+import { Heavy } from '../common/throttle';
 import { SsoError, SsoService } from './sso.service';
 
-const HANDOFF_COOKIE = 'engpro_sso';
-const RETRY_COOKIE = 'engpro_sso_retry';
-const REFRESH_COOKIE = 'engpro_rt';
 
 @Controller('auth/sso')
 export class SsoController {
@@ -34,18 +36,13 @@ export class SsoController {
 
   /** Entry point: also what DWS Hub can launch directly. */
   @Public()
+  @Heavy()
   @Get('start')
   async start(@Query('returnTo') returnTo: string, @Res() res: Response) {
     try {
       const { url, handoff } = await this.sso.buildAuthorizeUrl(returnTo);
       // SameSite=Lax so the cookie survives the top-level redirect back from Hub.
-      res.cookie(HANDOFF_COOKIE, JSON.stringify(handoff), {
-        httpOnly: true,
-        secure: process.env.COOKIE_SECURE === 'true',
-        sameSite: 'lax',
-        path: '/api/v1/auth/sso',
-        maxAge: 10 * 60_000,
-      });
+      res.cookie(HANDOFF_COOKIE, JSON.stringify(handoff), ssoHandoffCookieOptions(10 * 60_000));
       this.log.log(`SSO flow started (state=${handoff.state.slice(0, 8)}…) -> ${url.split('?')[0]}`);
       return res.redirect(url);
     } catch (e: any) {
@@ -64,7 +61,7 @@ export class SsoController {
     @Res() res: Response,
   ) {
     const fail = (c: string) => {
-      res.clearCookie(HANDOFF_COOKIE, { path: '/api/v1/auth/sso' });
+      res.clearCookie(HANDOFF_COOKIE, { path: SSO_PATH });
       return res.redirect(`${this.appBase()}/login?sso_error=${c}`);
     };
 
@@ -91,20 +88,14 @@ export class SsoController {
       );
       if (code && !alreadyRetried) {
         // The app itself must own the PKCE verifier, so begin our own authorization request.
-        res.cookie(RETRY_COOKIE, '1', {
-          httpOnly: true,
-          secure: process.env.COOKIE_SECURE === 'true',
-          sameSite: 'lax',
-          path: '/api/v1/auth/sso',
-          maxAge: 5 * 60_000,
-        });
+        res.cookie(RETRY_COOKIE, '1', ssoHandoffCookieOptions(5 * 60_000));
         this.log.log('Hub-initiated landing detected — restarting the flow from /auth/sso/start');
         return res.redirect('/api/v1/auth/sso/start');
       }
-      res.clearCookie(RETRY_COOKIE, { path: '/api/v1/auth/sso' });
+      res.clearCookie(RETRY_COOKIE, { path: SSO_PATH });
       return fail('no_session');
     }
-    res.clearCookie(RETRY_COOKIE, { path: '/api/v1/auth/sso' });
+    res.clearCookie(RETRY_COOKIE, { path: SSO_PATH });
     if (!code) {
       this.log.warn('SSO callback carried no authorization code');
       return fail('server_error');
@@ -122,15 +113,8 @@ export class SsoController {
       const { accessToken, refreshToken } = await this.sso.completeLogin(
         code, handoff.verifier, handoff.nonce, req.ip, req.headers['user-agent'],
       );
-      const days = parseInt(process.env.REFRESH_TTL_DAYS || '7', 10);
-      res.clearCookie(HANDOFF_COOKIE, { path: '/api/v1/auth/sso' });
-      res.cookie(REFRESH_COOKIE, refreshToken, {
-        httpOnly: true,
-        secure: process.env.COOKIE_SECURE === 'true',
-        sameSite: 'strict',
-        path: '/api/v1/auth',
-        maxAge: days * 86400_000,
-      });
+      res.clearCookie(HANDOFF_COOKIE, { path: SSO_PATH });
+      setRefreshCookie(res, refreshToken);
       // The SPA silently refreshes on load, so landing on the app is enough to be signed in.
       const target = handoff.returnTo && handoff.returnTo.startsWith('/') ? handoff.returnTo : '/';
       void accessToken;

@@ -32,13 +32,22 @@ export class UsersService {
 
   async list(user: JwtUser, role?: string, active?: string) {
     const where: any = { workspaceId: user.ws, deletedAt: null };
+    // AR-03: an external user gets their own company's directory, never the organisation's
+    // staff list. A list of names, roles and email addresses is exactly what a competitor
+    // would want as a phishing target list.
+    if (user.ext) where.companyId = user.co ?? '00000000-0000-0000-0000-000000000000';
     if (role) where.role = role;
     if (active === 'true') where.isActive = true;
     if (active === 'false') where.isActive = false;
     if (await this.permsSvc.can(user, 'stUsers', 'view')) {
       const rows = await this.prisma.user.findMany({
         where, orderBy: { fullName: 'asc' },
-        select: { ...PUBLIC_SELECT, email: true, mustChangePassword: true, activatedAt: true, createdAt: true, site: { select: { id: true, name: true } } },
+        select: {
+          ...PUBLIC_SELECT, email: true, mustChangePassword: true, activatedAt: true,
+          createdAt: true, companyId: true,
+          site: { select: { id: true, name: true } },
+          company: { select: { id: true, name: true, isInternal: true } },
+        },
       });
       return rows;
     }
@@ -64,6 +73,18 @@ export class UsersService {
     return `${base}-${Date.now().toString(36)}`;
   }
 
+  /**
+   * AR-03: every user-management operation is confined to the actor's company when the actor
+   * is external. Without this an external manager could edit, reset or deactivate any account
+   * in the workspace — including the organisation's own staff — just by knowing an id.
+   */
+  private scoped(actor: JwtUser, id: string): any {
+    return {
+      id, workspaceId: actor.ws, deletedAt: null,
+      ...(actor.ext ? { companyId: actor.co ?? '00000000-0000-0000-0000-000000000000' } : {}),
+    };
+  }
+
   async create(actor: JwtUser, dto: any, ip?: string) {
     const email = String(dto.email).trim().toLowerCase();
     const username = await this.deriveUsername(actor.ws, email, dto.username);
@@ -78,6 +99,9 @@ export class UsersService {
           email,
           role: dto.role,
           siteId: dto.role === 'SITE_ADMIN' ? dto.siteId : dto.siteId ?? null,
+          // External actors can only ever create inside their own company. Internal actors
+          // may name one; if they do not, the account joins the internal company.
+          companyId: actor.ext ? actor.co : (dto.companyId ?? actor.co ?? null),
           avatarColor: dto.avatarColor ?? 0,
           passwordHash,
           mustChangePassword: false,
@@ -112,7 +136,7 @@ export class UsersService {
   }
 
   async update(actor: JwtUser, id: string, dto: any, ip?: string) {
-    const existing = await this.prisma.user.findFirst({ where: { id, workspaceId: actor.ws, deletedAt: null } });
+    const existing = await this.prisma.user.findFirst({ where: this.scoped(actor, id) });
     if (!existing) return null;
     if (dto.isActive === false && id === actor.sub) {
       throw new BadRequestException('You cannot deactivate your own account.');
@@ -129,6 +153,8 @@ export class UsersService {
           email: dto.email ? String(dto.email).trim().toLowerCase() : undefined,
           role: dto.role,
           siteId: dto.siteId, avatarColor: dto.avatarColor, isActive: dto.isActive,
+          // Only an internal actor may move an account between companies.
+          companyId: actor.ext ? undefined : dto.companyId,
         },
         select: { ...PUBLIC_SELECT, email: true, mustChangePassword: true },
       });
@@ -150,7 +176,7 @@ export class UsersService {
 
   /** Manager-initiated: emails a single-use link instead of handing out a password. */
   async resetPassword(actor: JwtUser, id: string, ip?: string) {
-    const existing = await this.prisma.user.findFirst({ where: { id, workspaceId: actor.ws, deletedAt: null } });
+    const existing = await this.prisma.user.findFirst({ where: this.scoped(actor, id) });
     if (!existing) throw new NotFoundException();
     const company = await this.companyName(actor.ws);
     const target = { id: existing.id, email: existing.email!, fullName: existing.fullName };
@@ -167,7 +193,7 @@ export class UsersService {
 
   /** Explicit resend for a pending invitation. */
   async resendActivation(actor: JwtUser, id: string, ip?: string) {
-    const existing = await this.prisma.user.findFirst({ where: { id, workspaceId: actor.ws, deletedAt: null } });
+    const existing = await this.prisma.user.findFirst({ where: this.scoped(actor, id) });
     if (!existing) throw new NotFoundException();
     if (existing.activatedAt) {
       throw new BadRequestException('This account is already activated — send a password reset instead.');
@@ -184,7 +210,7 @@ export class UsersService {
   }
 
   async softDelete(actor: JwtUser, id: string, ip?: string) {
-    const existing = await this.prisma.user.findFirst({ where: { id, workspaceId: actor.ws, deletedAt: null } });
+    const existing = await this.prisma.user.findFirst({ where: this.scoped(actor, id) });
     if (!existing) throw new NotFoundException();
     if (id === actor.sub) throw new BadRequestException('You cannot deactivate your own account.');
     const openTickets = await this.prisma.ticket.count({

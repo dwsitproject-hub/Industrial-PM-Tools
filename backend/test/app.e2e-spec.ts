@@ -11,7 +11,7 @@ let app: INestApplication;
 let http: any;
 
 const PW = 'Password10!';
-let ws: any, siteA: any, siteB: any;
+let ws: any, siteA: any, siteB: any, internalCo: any;
 let manager: any, admin: any, est1: any, est2: any, saA: any, saB: any;
 const tokens: Record<string, string> = {};
 
@@ -47,16 +47,22 @@ beforeAll(async () => {
   await prisma.kpiSettings.deleteMany();
   await prisma.user.deleteMany();
   await prisma.site.deleteMany();
+  await prisma.company.deleteMany();
   await prisma.workspace.deleteMany();
 
   // ---- fixtures ----
   const hash = await argon2.hash(PW, { type: argon2.argon2id });
   ws = await prisma.workspace.create({ data: { company: 'Test Co', ticketPrefix: 'TST' } });
+  // AR-03: the migration guarantees one internal company per workspace, and a user with no
+  // company is treated as external (fail closed). Fixtures mirror that.
+  internalCo = await prisma.company.create({
+    data: { workspaceId: ws.id, name: 'Test Co', isInternal: true },
+  });
   siteA = await prisma.site.create({ data: { workspaceId: ws.id, name: 'Site A' } });
   siteB = await prisma.site.create({ data: { workspaceId: ws.id, name: 'Site B' } });
   const mk = (username: string, role: string, extra: any = {}) => prisma.user.create({
     data: {
-      workspaceId: ws.id, username, email: mail(username),
+      workspaceId: ws.id, username, email: mail(username), companyId: internalCo.id,
       fullName: username.toUpperCase(), role: role as any,
       passwordHash: hash, mustChangePassword: false, activatedAt: new Date(), ...extra,
     },
@@ -721,6 +727,28 @@ describe('F18 Roles & permissions administration (Settings → Roles)', () => {
     expect(mgr.locked).toBe(true);
     expect(mgr.pages.stRoles.edit).toBe(true);
   });
+  // AR-06: restore is a write. It used to be gated on stAudit.view, so granting a
+  // compliance-style role sight of the audit trail also handed it the power to bring
+  // deleted tickets back. Restore now needs the same permission as deleting.
+  it('audit visibility alone does not grant the power to restore deleted tickets', async () => {
+    const t = await createTicket(tokens.admin, { name: 'Restore permission probe' });
+    const id = t.body.id;
+    await request(http).delete(`/api/v1/tickets/${id}`).set(auth(tokens.admin)).expect(200);
+
+    await putRole('ESTIMATOR', {
+      pages: { stAudit: { view: true }, tickets: { delete: false } },
+    }).expect(200);
+    const denied = await request(http).post(`/api/v1/tickets/${id}/restore`).set(auth(tokens.est1));
+    expect(denied.status).toBe(403);
+
+    // and the audit trail itself is still readable, so the permission still means something
+    const audit = await request(http).get('/api/v1/audit').set(auth(tokens.est1));
+    expect(audit.status).toBe(200);
+
+    await resetRole('ESTIMATOR');
+    await request(http).post(`/api/v1/tickets/${id}/restore`).set(auth(tokens.manager)).expect(200);
+  });
+
   it('the manager role cannot be modified; non-managers cannot modify any role', async () => {
     const locked = await putRole('MANAGER', { ticketScope: 'OWN' });
     expect(locked.status).toBe(400);
@@ -820,11 +848,21 @@ describe('F19 account activation & self-service password reset', () => {
     expect(row!.tokenHash).not.toBe(tokenOf(inviteLink));
   });
 
-  it('a pending account cannot log in and is told why', async () => {
-    const res = await request(http).post('/api/v1/auth/login')
+  // AR-05: a pending account used to answer 403 AccountNotActivated, which confirmed to an
+  // unauthenticated caller that the address held an account — and that it was new enough to
+  // be worth an activation-themed phishing email. All three outcomes now look identical.
+  it('a pending account cannot log in and is indistinguishable from an unknown address', async () => {
+    const pending = await request(http).post('/api/v1/auth/login')
       .send({ email: 'erin@test.local', password: PW_NEW });
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('AccountNotActivated');
+    const unknown = await request(http).post('/api/v1/auth/login')
+      .send({ email: 'no.such.person@test.local', password: PW_NEW });
+    const wrongPw = await request(http).post('/api/v1/auth/login')
+      .send({ email: 'alice@test.local', password: 'definitely-not-the-password' });
+
+    expect(pending.status).toBe(401);
+    expect(pending.body).toEqual(unknown.body);
+    expect(pending.body).toEqual(wrongPw.body);
+    expect(pending.body.message).toBe('Invalid email or password');
   });
 
   it('the activation link can be inspected before use', async () => {
@@ -934,6 +972,18 @@ describe('F19 account activation & self-service password reset', () => {
     const res = await request(http).post('/api/v1/users/' + est1.id + '/reset-password').set(auth(tokens.admin));
     expect(res.status).toBe(403);
   });
+
+  // Placed last: resending supersedes the outstanding activation token, so running this
+  // earlier would invalidate the link the tests above still use.
+  it('an invited user can still recover: forgot-password resends the activation link', async () => {
+    const res = await request(http).post('/api/v1/auth/forgot-password')
+      .send({ email: 'erin@test.local' });
+    expect(res.status).toBe(200);
+    // Same neutral answer an unknown address gets, so this path leaks nothing either.
+    const unknown = await request(http).post('/api/v1/auth/forgot-password')
+      .send({ email: 'no.such.person@test.local' });
+    expect(res.body).toEqual(unknown.body);
+  });
 });
 
 describe('Audit trail', () => {
@@ -948,5 +998,451 @@ describe('Audit trail', () => {
     expect(actions.some((a: string) => ['update', 'delete', 'restore'].includes(a))).toBe(true);
     const withActor = res.body.items.find((i: any) => i.actor);
     expect(withActor.actor.fullName).toBeTruthy();
+  });
+});
+
+// ── AR-08 ────────────────────────────────────────────────────────────────────
+describe('AR-08 token forgery is refused regardless of the algorithm claimed', () => {
+  const { createHmac } = require('crypto');
+  const b64 = (o: any) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const sign = (header: any, payload: any, secret: string | null) => {
+    const body = `${b64(header)}.${b64(payload)}`;
+    if (secret === null) return `${body}.`;
+    return `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`;
+  };
+  const claims = () => {
+    const real = JSON.parse(Buffer.from(tokens.est1.split('.')[1], 'base64url').toString());
+    return { ...real, role: 'MANAGER' };
+  };
+  const probe = (t: string) => request(http).get('/api/v1/roles').set(auth(t));
+
+  it('rejects a token whose payload was edited but signature left alone', async () => {
+    const [h, , sig] = tokens.est1.split('.');
+    const res = await probe(`${h}.${b64(claims())}.${sig}`);
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects an unsigned "alg: none" token', async () => {
+    const res = await probe(sign({ alg: 'none', typ: 'JWT' }, claims(), null));
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a token signed with the wrong secret', async () => {
+    const res = await probe(sign({ alg: 'HS256', typ: 'JWT' }, claims(), 'not-the-real-secret'));
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a token signed with the REFRESH secret rather than the access secret', async () => {
+    const res = await probe(sign({ alg: 'HS256', typ: 'JWT' }, claims(), process.env.JWT_REFRESH_SECRET!));
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects an expired token', async () => {
+    const past = Math.floor(Date.now() / 1000) - 3600;
+    const res = await probe(sign(
+      { alg: 'HS256', typ: 'JWT' },
+      { ...claims(), iat: past - 60, exp: past },
+      process.env.JWT_ACCESS_SECRET!,
+    ));
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── AR-11 / AR-12 / AR-14 / AR-15 ────────────────────────────────────────────
+describe('AR-11 user-controlled values cannot inject markup into email', () => {
+  const { MailService } = require('../src/common/mail.service');
+
+  it('escapes a display name containing HTML in the activation email', async () => {
+    const svc = app.get(MailService);
+    const spy = jest.spyOn(svc as any, 'send').mockResolvedValue({ delivered: true });
+    await svc.activation(
+      'victim@test.local',
+      '<a href="https://evil.example">Click here to verify</a>',
+      'Test Co', 'https://app.example/activate?token=abc', 72,
+    );
+    const html = spy.mock.calls[0][3] as string;
+    expect(html).not.toContain('<a href="https://evil.example"');
+    expect(html).toContain('&lt;a href=&quot;https://evil.example&quot;');
+    spy.mockRestore();
+  });
+
+  it('strips CR/LF from the recipient and subject so headers cannot be injected', () => {
+    const header = (MailService as any).header;
+    expect(header('victim@test.local\r\nBcc: attacker@evil.example'))
+      .toBe('victim@test.local Bcc: attacker@evil.example');
+  });
+});
+
+describe('AR-12 the audit trail is tamper-evident', () => {
+  const { AuditService } = require('../src/common/audit.service');
+
+  it('chains records and detects an edited row', async () => {
+    const audit = app.get(AuditService);
+    await createTicket(tokens.admin, { name: 'Audit chain probe' });
+
+    const clean = await audit.verifyChain(ws.id);
+    expect(clean.ok).toBe(true);
+    expect(clean.checked).toBeGreaterThan(0);
+
+    // Rewrite history the way someone with database access would.
+    const victim = await prisma.auditLog.findFirst({
+      where: { workspaceId: ws.id, hash: { not: null } }, orderBy: { id: 'desc' },
+    });
+    const original = victim!.action;
+    await prisma.auditLog.update({ where: { id: victim!.id }, data: { action: 'something-else' } });
+
+    const broken = await audit.verifyChain(ws.id);
+    expect(broken.ok).toBe(false);
+    expect(broken.firstBreakAt).toBe(String(victim!.id));
+
+    await prisma.auditLog.update({ where: { id: victim!.id }, data: { action: original } });
+    expect((await audit.verifyChain(ws.id)).ok).toBe(true);
+  });
+
+  it('detects a deleted row', async () => {
+    const audit = app.get(AuditService);
+    const rows = await prisma.auditLog.findMany({
+      where: { workspaceId: ws.id, hash: { not: null } }, orderBy: { id: 'desc' }, take: 2,
+    });
+    const removed = rows[1];
+    const copy = { ...removed };
+    await prisma.auditLog.delete({ where: { id: removed.id } });
+    expect((await audit.verifyChain(ws.id)).ok).toBe(false);
+    await prisma.auditLog.create({ data: { ...copy, id: undefined } as any });
+  });
+});
+
+describe('AR-14 the test-email endpoint is not an open relay', () => {
+  it('refuses to send to an address that is not the caller own', async () => {
+    const res = await request(http).post('/api/v1/mail/test').set(auth(tokens.manager))
+      .send({ to: 'someone@external.example' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('RecipientNotPermitted');
+  });
+
+  it('allows the caller own address', async () => {
+    const res = await request(http).post('/api/v1/mail/test').set(auth(tokens.manager))
+      .send({ to: mail('boss') });
+    expect(res.status).toBe(200);
+    expect(res.body.to).toBe(mail('boss'));
+  });
+
+  it('defaults to the caller own address when none is given', async () => {
+    const res = await request(http).post('/api/v1/mail/test').set(auth(tokens.manager)).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.to).toBe(mail('boss'));
+  });
+});
+
+describe('AR-15 repeated failed logins lock the account', () => {
+  const victim = 'lockme@test.local';
+  let saved: string | undefined;
+
+  beforeAll(async () => {
+    saved = process.env.LOCKOUT_THRESHOLD;
+    process.env.LOCKOUT_THRESHOLD = '3';
+    process.env.LOCKOUT_MINUTES = '15';
+    const argon2 = require('argon2');
+    await prisma.user.create({
+      data: {
+        workspaceId: ws.id, username: 'lockme', email: victim, fullName: 'Lock Me',
+        companyId: internalCo.id,
+        role: 'ESTIMATOR', passwordHash: await argon2.hash(PW, { type: argon2.argon2id }),
+        isActive: true, activatedAt: new Date(), mustChangePassword: false,
+      },
+    });
+  });
+  afterAll(() => {
+    if (saved === undefined) delete process.env.LOCKOUT_THRESHOLD; else process.env.LOCKOUT_THRESHOLD = saved;
+  });
+
+  it('locks after the threshold and then refuses even the CORRECT password', async () => {
+    for (let i = 0; i < 3; i++) {
+      const bad = await request(http).post('/api/v1/auth/login')
+        .send({ email: victim, password: 'wrong-password' });
+      expect(bad.status).toBe(401);
+    }
+    const row = await prisma.user.findUnique({ where: { email: victim } });
+    expect(row!.lockedUntil).not.toBeNull();
+
+    // The whole point: the right password does not help while the account is locked.
+    const good = await request(http).post('/api/v1/auth/login').send({ email: victim, password: PW });
+    expect(good.status).toBe(401);
+    // ...and the response is identical to a wrong password, so the lock is not an oracle.
+    const unknown = await request(http).post('/api/v1/auth/login')
+      .send({ email: 'nobody-at-all@test.local', password: PW });
+    expect(good.body).toEqual(unknown.body);
+
+    const events = await prisma.auditLog.findMany({
+      where: { entityType: 'auth', actorId: row!.id }, select: { action: true },
+    });
+    expect(events.map((e) => e.action)).toContain('login-lockout');
+  });
+
+  it('a successful login clears the counter', async () => {
+    await prisma.user.update({ where: { email: victim }, data: { lockedUntil: null, failedLoginCount: 2 } });
+    const ok = await request(http).post('/api/v1/auth/login').send({ email: victim, password: PW });
+    expect(ok.status).toBe(200);
+    const row = await prisma.user.findUnique({ where: { email: victim } });
+    expect(row!.failedLoginCount).toBe(0);
+    expect(row!.lastLoginAt).not.toBeNull();
+  });
+});
+
+// ── AR-07 ────────────────────────────────────────────────────────────────────
+describe('AR-07 every route declares how it is authorised', () => {
+  const { RoutePolicyService } = require('../src/common/route-policy');
+
+  it('leaves no route undeclared', () => {
+    const routes = app.get(RoutePolicyService).all();
+    expect(routes.length).toBeGreaterThan(40);
+    const undeclared = routes.filter((r: any) => !r.gate);
+    if (undeclared.length) {
+      // eslint-disable-next-line no-console
+      console.log('undeclared:', undeclared.map((r: any) => `${r.method} ${r.path}`).join('\n'));
+    }
+    expect(undeclared).toHaveLength(0);
+  });
+
+  it('exposes a readable policy so the effective matrix can be reviewed', () => {
+    const routes = app.get(RoutePolicyService).all();
+    const byGate = routes.reduce((acc: any, r: any) => {
+      const kind = r.gate.split(':')[0];
+      acc[kind] = (acc[kind] || 0) + 1;
+      return acc;
+    }, {});
+    // Public routes are the internet-facing attack surface; keep the number small and known.
+    expect(byGate.public).toBeLessThanOrEqual(15);  // tripwire: the enumerated list below is authoritative
+    expect(byGate.perm).toBeGreaterThan(15);
+  });
+
+  it('the public routes are exactly the ones we intend to expose unauthenticated', () => {
+    const routes = app.get(RoutePolicyService).all();
+    const publicPaths = routes.filter((r: any) => r.gate === 'public')
+      .map((r: any) => `${r.method} ${r.path}`).sort();
+    expect(publicPaths).toEqual([
+      'GET /auth/activate/:token',
+      'GET /auth/reset-password/:token',
+      'GET /auth/sso/callback',
+      'GET /auth/sso/config',
+      'GET /auth/sso/health',
+      'GET /auth/sso/start',
+      'GET /health',
+      'GET /ready',
+      'GET /workspace',
+      'POST /auth/activate',
+      'POST /auth/forgot-password',
+      'POST /auth/login',
+      'POST /auth/mfa/verify',
+      'POST /auth/refresh',
+      'POST /auth/reset-password',
+    ]);
+  });
+});
+
+// ── AR-04 ────────────────────────────────────────────────────────────────────
+describe('AR-04 TOTP implementation matches the RFC 6238 test vectors', () => {
+  const totp = require('../src/auth/totp');
+  // RFC 6238 Appendix B: secret "12345678901234567890" (ASCII), SHA-1, 8 digits.
+  const SECRET = totp.base32Encode(Buffer.from('12345678901234567890', 'ascii'));
+  const VECTORS: [number, string][] = [
+    [59, '94287082'],
+    [1111111109, '07081804'],
+    [1111111111, '14050471'],
+    [1234567890, '89005924'],
+    [2000000000, '69279037'],
+    [20000000000, '65353130'],
+  ];
+
+  it.each(VECTORS)('T=%i produces %s', (time, expected) => {
+    expect(totp.generate(SECRET, { digits: 8, now: time })).toBe(expected);
+  });
+
+  it('round-trips base32 encoding', () => {
+    const raw = Buffer.from('12345678901234567890', 'ascii');
+    expect(totp.base32Decode(totp.base32Encode(raw)).equals(raw)).toBe(true);
+  });
+
+  it('accepts one step of clock drift either side but not two', () => {
+    const now = 1700000000;
+    const code = totp.generate(SECRET, { now });
+    expect(totp.verify(code, SECRET, { now: now + 30 })).toBe(true);
+    expect(totp.verify(code, SECRET, { now: now - 30 })).toBe(true);
+    expect(totp.verify(code, SECRET, { now: now + 90 })).toBe(false);
+  });
+
+  it('rejects malformed input without throwing', () => {
+    expect(totp.verify('', SECRET)).toBe(false);
+    expect(totp.verify('abcdef', SECRET)).toBe(false);
+    expect(totp.verify('12345', SECRET)).toBe(false);
+  });
+});
+
+describe('AR-04 two-factor authentication end to end', () => {
+  const totp = require('../src/auth/totp');
+  const email = mail('boss');
+  let secret = '';
+  let backupCodes: string[] = [];
+  let freshToken = '';
+
+  const code = () => totp.generate(secret);
+
+  it('enrolment: setup returns a secret and QR, and nothing is enabled yet', async () => {
+    const res = await request(http).post('/api/v1/auth/mfa/setup').set(auth(tokens.manager)).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.secret).toMatch(/^[A-Z2-7]{32}$/);
+    expect(res.body.qr).toMatch(/^data:image\/png;base64,/);
+    expect(res.body.uri).toContain('otpauth://totp/');
+    secret = res.body.secret;
+
+    const status = await request(http).get('/api/v1/auth/mfa/status').set(auth(tokens.manager));
+    expect(status.body.enabled).toBe(false);
+  });
+
+  it('a wrong code does not enable it', async () => {
+    const res = await request(http).post('/api/v1/auth/mfa/enable')
+      .set(auth(tokens.manager)).send({ code: '000000' });
+    expect(res.status).toBe(400);
+    const status = await request(http).get('/api/v1/auth/mfa/status').set(auth(tokens.manager));
+    expect(status.body.enabled).toBe(false);
+  });
+
+  it('a correct code enables it and returns single-use backup codes', async () => {
+    const res = await request(http).post('/api/v1/auth/mfa/enable')
+      .set(auth(tokens.manager)).send({ code: code() });
+    expect(res.status).toBe(200);
+    expect(res.body.backupCodes).toHaveLength(10);
+    expect(res.body.accessToken).toBeTruthy();
+    backupCodes = res.body.backupCodes;
+    freshToken = res.body.accessToken;
+
+    // stored hashed, never in the clear
+    const row = await prisma.user.findUnique({ where: { email } });
+    expect(row!.mfaBackupCodes).toHaveLength(10);
+    expect(row!.mfaBackupCodes).not.toContain(backupCodes[0]);
+    // and the secret itself is encrypted at rest, not the base32 value
+    expect(row!.mfaSecret).not.toContain(secret);
+    expect(row!.mfaSecret!.split('.')).toHaveLength(3);
+  });
+
+  it('the correct password alone no longer yields a session', async () => {
+    const res = await request(http).post('/api/v1/auth/login').send({ email, password: PW });
+    expect(res.status).toBe(200);
+    expect(res.body.mfaRequired).toBe(true);
+    expect(res.body.accessToken).toBeUndefined();
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('the challenge token cannot be used as an access token', async () => {
+    const login = await request(http).post('/api/v1/auth/login').send({ email, password: PW });
+    const res = await request(http).get('/api/v1/roles').set(auth(login.body.mfaToken));
+    expect(res.status).toBe(401);
+  });
+
+  it('a wrong second factor is refused', async () => {
+    const login = await request(http).post('/api/v1/auth/login').send({ email, password: PW });
+    const res = await request(http).post('/api/v1/auth/mfa/verify')
+      .send({ mfaToken: login.body.mfaToken, code: '000000' });
+    expect(res.status).toBe(401);
+  });
+
+  it('a correct second factor completes the login', async () => {
+    const login = await request(http).post('/api/v1/auth/login').send({ email, password: PW });
+    const res = await request(http).post('/api/v1/auth/mfa/verify')
+      .send({ mfaToken: login.body.mfaToken, code: code() });
+    expect(res.status).toBe(200);
+    expect(res.body.accessToken).toBeTruthy();
+    expect(String(res.headers['set-cookie'])).toContain('engpro_rt');
+    tokens.manager = res.body.accessToken;
+  });
+
+  it('a backup code works once and then is consumed', async () => {
+    const one = backupCodes[0];
+    const login1 = await request(http).post('/api/v1/auth/login').send({ email, password: PW });
+    const first = await request(http).post('/api/v1/auth/mfa/verify')
+      .send({ mfaToken: login1.body.mfaToken, code: one });
+    expect(first.status).toBe(200);
+
+    const login2 = await request(http).post('/api/v1/auth/login').send({ email, password: PW });
+    const second = await request(http).post('/api/v1/auth/mfa/verify')
+      .send({ mfaToken: login2.body.mfaToken, code: one });
+    expect(second.status).toBe(401);
+
+    const row = await prisma.user.findUnique({ where: { email } });
+    expect(row!.mfaBackupCodes).toHaveLength(9);
+  });
+
+  it('an expired or forged challenge is refused', async () => {
+    const res = await request(http).post('/api/v1/auth/mfa/verify')
+      .send({ mfaToken: tokens.est1, code: code() });   // a real access token, wrong purpose
+    expect(res.status).toBe(401);
+  });
+
+  it('disabling requires the password and then restores password-only login', async () => {
+    const wrong = await request(http).post('/api/v1/auth/mfa/disable')
+      .set(auth(tokens.manager)).send({ password: 'not-my-password' });
+    expect(wrong.status).toBe(401);
+
+    const ok = await request(http).post('/api/v1/auth/mfa/disable')
+      .set(auth(tokens.manager)).send({ password: PW });
+    expect(ok.status).toBe(200);
+
+    const login = await request(http).post('/api/v1/auth/login').send({ email, password: PW });
+    expect(login.body.accessToken).toBeTruthy();
+    tokens.manager = login.body.accessToken;
+  });
+});
+
+describe('AR-04 MFA_POLICY=required forces privileged roles to enrol', () => {
+  let saved: string | undefined;
+  beforeAll(() => { saved = process.env.MFA_POLICY; process.env.MFA_POLICY = 'required'; });
+  afterAll(() => {
+    if (saved === undefined) delete process.env.MFA_POLICY; else process.env.MFA_POLICY = saved;
+  });
+
+  it('blocks a privileged role that has not enrolled', async () => {
+    const res = await request(http).get('/api/v1/tickets').set(auth(tokens.manager));
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('MfaEnrollmentRequired');
+  });
+
+  it('still allows the routes needed to enrol, and to sign out', async () => {
+    for (const path of ['/api/v1/auth/mfa/status', '/api/v1/auth/me']) {
+      expect((await request(http).get(path).set(auth(tokens.manager))).status).toBe(200);
+    }
+    expect((await request(http).post('/api/v1/auth/mfa/setup').set(auth(tokens.manager)).send({})).status).toBe(200);
+  });
+
+  it('does not block roles outside MFA_REQUIRED_ROLES', async () => {
+    const res = await request(http).get('/api/v1/tickets').set(auth(tokens.est1));
+    expect(res.status).toBe(200);
+  });
+
+  it('reports the obligation so the UI can prompt', async () => {
+    const res = await request(http).get('/api/v1/auth/mfa/status').set(auth(tokens.manager));
+    expect(res.body).toMatchObject({ required: true, policy: 'required', enabled: false });
+  });
+
+  it('a required role cannot turn MFA off again', async () => {
+    const totp = require('../src/auth/totp');
+    const setup = await request(http).post('/api/v1/auth/mfa/setup').set(auth(tokens.manager)).send({});
+    const enabled = await request(http).post('/api/v1/auth/mfa/enable')
+      .set(auth(tokens.manager)).send({ code: totp.generate(setup.body.secret) });
+    expect(enabled.status).toBe(200);
+    const token = enabled.body.accessToken;
+
+    // enrolled: the application is usable again
+    expect((await request(http).get('/api/v1/tickets').set(auth(token))).status).toBe(200);
+
+    const off = await request(http).post('/api/v1/auth/mfa/disable').set(auth(token)).send({ password: PW });
+    expect(off.status).toBe(400);
+
+    // clean up so later suites are unaffected
+    await prisma.user.update({
+      where: { email: mail('boss') },
+      data: { mfaEnabledAt: null, mfaSecret: null, mfaBackupCodes: [] },
+    });
+    tokens.manager = (await request(http).post('/api/v1/auth/login')
+      .send({ email: mail('boss'), password: PW })).body.accessToken;
   });
 });

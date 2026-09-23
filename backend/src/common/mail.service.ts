@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 
+const NEWLINE = '\n';
+
 export interface MailResult {
   /** true when the message was handed to an SMTP server */
   delivered: boolean;
@@ -79,7 +81,13 @@ export class MailService {
       return { delivered: false, reason: 'SMTP is not configured on this server' };
     }
     try {
-      await transport.sendMail({ from: this.from, to, subject, text, html: html ?? undefined });
+      await transport.sendMail({
+        from: this.from,
+        to: MailService.header(to),
+        subject: MailService.header(subject),
+        text,
+        html: html ?? undefined,
+      });
       this.log.log(`Sent "${subject}" to ${to}`);
       return { delivered: true };
     } catch (e: any) {
@@ -89,25 +97,49 @@ export class MailService {
   }
 
   // ── templates ─────────────────────────────────────────────────────
+  /**
+   * AR-11: display names and the workspace company name are user-controlled and were being
+   * interpolated straight into the HTML body. A crafted name could therefore inject markup —
+   * including a competing link — into an activation email recipients have every reason to
+   * trust. Everything that reaches the template is escaped here, at the single point where
+   * text becomes HTML, rather than relying on each caller to remember.
+   */
+  private static esc(value: string): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /** Header values must not carry CR/LF, which would let a crafted name add headers. */
+  private static header(value: string): string {
+    return String(value ?? '').replace(/[\r\n]+/g, ' ').trim();
+  }
+
   private layout(title: string, intro: string, cta: string, link: string, footer: string): string {
+    const e = MailService.esc;
     return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#181816;line-height:1.55">
-  <h2 style="font-size:17px;margin:0 0 12px">${title}</h2>
-  <p style="margin:0 0 14px">${intro}</p>
+  <h2 style="font-size:17px;margin:0 0 12px">${e(title)}</h2>
+  <p style="margin:0 0 14px">${e(intro)}</p>
   <p style="margin:0 0 18px">
-    <a href="${link}" style="background:#181816;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">${cta}</a>
+    <a href="${e(link)}" style="background:#181816;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">${e(cta)}</a>
   </p>
   <p style="margin:0 0 6px;color:#6B6A66;font-size:12px">Or paste this address into your browser:</p>
-  <p style="margin:0 0 18px;font-size:12px;word-break:break-all"><a href="${link}">${link}</a></p>
-  <p style="margin:0;color:#6B6A66;font-size:12px">${footer}</p>
+  <p style="margin:0 0 18px;font-size:12px;word-break:break-all"><a href="${e(link)}">${e(link)}</a></p>
+  <p style="margin:0;color:#6B6A66;font-size:12px">${e(footer)}</p>
 </div>`;
   }
 
   activation(to: string, fullName: string, company: string, link: string, hours: number) {
     const subject = `Activate your ${company} account`;
-    const text =
-      `Hi ${fullName},\n\nAn account has been created for you on ${company} (EngPro).\n` +
-      `Set your password to activate it:\n${link}\n\n` +
-      `The link expires in ${hours} hours. If it expires, ask your manager to resend it.\n`;
+    const text = [
+      `Hi ${fullName},`,
+      '',
+      `An account has been created for you on ${company} (EngPro).`,
+      'Set your password to activate it:',
+      link,
+      '',
+      `The link expires in ${hours} hours. If it expires, ask your manager to resend it.`,
+    ].join(NEWLINE);
     return this.send(to, subject, text,
       this.layout(
         `Activate your ${company} account`,
@@ -116,6 +148,32 @@ export class MailService {
         `This link expires in ${hours} hours. If it expires, ask your manager to send a new one. If you were not expecting this email, you can ignore it.`,
       ));
   }
+
+  /**
+   * AR-15: sent when an account is locked by repeated failed logins. The login response
+   * tells the attacker nothing, so this is how the account's real owner finds out that
+   * someone is working on their password.
+   */
+  lockoutNotice(to: string, fullName: string, minutes: number, ip?: string | null) {
+    const where = ip ? ` The most recent attempt came from ${ip}.` : '';
+    const text = [
+      `Hi ${fullName},`,
+      '',
+      `There have been repeated failed sign-in attempts on your EngPro account, so it has been locked for ${minutes} minutes.${where}`,
+      '',
+      `If this was you, wait ${minutes} minutes and try again, or use "Forgot password".`,
+      'If it was not you, your password may be known to someone else — reset it now and tell your IT team.',
+    ].join(NEWLINE);
+    const base = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
+    return this.send(to, 'Unusual sign-in attempts on your EngPro account', text,
+      this.layout(
+        'Unusual sign-in attempts on your account',
+        `Hi ${fullName}, there have been repeated failed sign-in attempts on your EngPro account, so it has been locked for ${minutes} minutes.${where}`,
+        'Reset my password', `${base}/forgot-password`,
+        'If this was you, simply wait and try again. If it was not, reset your password now and tell your IT team.',
+      ));
+  }
+
 
   passwordReset(to: string, fullName: string, company: string, link: string, minutes: number) {
     const subject = `Reset your ${company} password`;

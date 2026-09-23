@@ -21,6 +21,7 @@ export const RESOURCES = [
   'stWorkspace',  // Settings -> Workspace                (view/edit)
   'stUsers',      // Settings -> Users                    (view/create/edit/delete)
   'stSites',      // Settings -> Sites                    (view/create/edit/delete)
+  'stCompanies',  // Settings -> Companies                (view/create/edit/delete)
   'stRoles',      // Settings -> Roles                    (view/edit)
   'stAudit',      // Settings -> Audit trail              (view)
 ] as const;
@@ -37,6 +38,7 @@ export const RESOURCE_ACTIONS: Record<ResourceKey, PermAction[]> = {
   stWorkspace: ['view', 'edit'],
   stUsers: ['view', 'create', 'edit', 'delete'],
   stSites: ['view', 'create', 'edit', 'delete'],
+  stCompanies: ['view', 'create', 'edit', 'delete'],
   stRoles: ['view', 'edit'],
   stAudit: ['view'],
 };

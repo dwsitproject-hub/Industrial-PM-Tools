@@ -1,0 +1,81 @@
+# EngPro / Industrial PM — PRODUCTION edge virtual host (internet-facing, TLS).
+#
+# Fixes AR-01 (no transport encryption). Use this instead of edge-vhost.conf.example
+# the moment the application is reachable from the internet. The plaintext variant is
+# only acceptable on the private staging network.
+#
+# Before installing:
+#   1. Obtain a certificate for the public hostname (Let's Encrypt or a corporate CA):
+#        sudo certbot certonly --nginx -d ind-pm.kpndomain.com
+#   2. Generate DH parameters once (takes a few minutes):
+#        sudo openssl dhparam -out /etc/nginx/dhparam.pem 2048
+#   3. Replace ind-pm.kpndomain.com below with the real hostname.
+#   4. sudo cp edge-vhost-tls.conf.example /etc/nginx/conf.d/ind-pm.conf
+#      sudo nginx -t && sudo systemctl reload nginx
+#   5. Set on the backend: DEPLOY_ENV=production, COOKIE_SECURE=true,
+#      APP_BASE_URL=https://..., CORS_ORIGIN=https://..., SSO_REDIRECT_URI=https://...
+#      (the API refuses to start otherwise — see backend/src/common/security.config.ts)
+#   6. Re-register the https redirect URI in DWS Hub Admin.
+
+# ── Plaintext listener: redirect only, never serve the application ──────────────
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ind-pm.kpndomain.com;
+
+    # ACME renewal must stay reachable over port 80.
+    location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
+
+    location / { return 301 https://$host$request_uri; }
+}
+
+# ── TLS listener ───────────────────────────────────────────────────────────────
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ind-pm.kpndomain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/ind-pm.kpndomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ind-pm.kpndomain.com/privkey.pem;
+
+    # TLS 1.2 is the floor; 1.0/1.1 and the weak suites are not offered at all.
+    ssl_protocols             TLSv1.2 TLSv1.3;
+    ssl_ciphers               ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+    ssl_prefer_server_ciphers off;
+    ssl_dhparam               /etc/nginx/dhparam.pem;
+    ssl_session_cache         shared:SSL:10m;
+    ssl_session_timeout       1d;
+    ssl_session_tickets       off;
+
+    # OCSP stapling — drop these three lines if the CA does not publish an OCSP responder.
+    ssl_stapling        on;
+    ssl_stapling_verify on;
+    resolver            1.1.1.1 8.8.8.8 valid=300s;
+
+    # HSTS. Start at 300 and raise to 31536000 once you are certain every path works over
+    # TLS — browsers honour the longest value they have seen and it cannot be taken back.
+    add_header Strict-Transport-Security "max-age=300; includeSubDomains" always;
+
+    client_max_body_size 2m;
+    # AR-02 / PT-I06: cap how long a client may hold a connection open while dribbling data.
+    client_body_timeout   15s;
+    client_header_timeout 15s;
+    send_timeout          30s;
+
+    location / {
+        proxy_pass http://127.0.0.1:3060;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 600s;
+    }
+}
+
+# `$connection_upgrade` must be defined once at http{} level — see 00-websocket-upgrade.conf:
+#   map $http_upgrade $connection_upgrade { default upgrade; '' close; }

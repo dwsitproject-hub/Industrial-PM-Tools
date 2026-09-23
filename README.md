@@ -60,7 +60,8 @@ cd frontend && npm run dev      # Vite dev server on :5173, proxies /api and /ws
 #   then: docker exec engpro-dev-db psql -U engpro -d postgres -c "CREATE DATABASE industrial_pm_test;"
 cd backend
 DATABASE_URL=postgresql://engpro:engpro@localhost:5439/industrial_pm_test npx prisma migrate deploy
-npm run test:e2e     # 103 tests (2 suites): auth, RBAC, roles matrix, numbering race, locking, KPI engine, audit
+npm run test:e2e     # 193 tests (4 suites): auth, RBAC, roles matrix, numbering race, locking,
+                     # KPI engine, audit chain, SSO, MFA, rate limiting, cross-tenant isolation
 ```
 
 ## Accounts: email activation & self-service password reset
@@ -113,6 +114,31 @@ behaviour; changes propagate live to signed-in users via the `roles.updated` soc
 change is audited and can be restored to defaults per role. Fixed safety envelopes remain on top of
 the matrix: Estimator edit = status of own assignments; Site Admin edit = required-by date,
 delete = own NEW tickets only.
+
+## External companies (tenancy)
+
+One workspace, every record owned by a company. Exactly one company is **internal** — your
+organisation — and its users are unscoped. Users of any other company are hard-scoped to their
+own tickets, people, KPI and audit trail, by the same mechanism that confines a site admin to
+one site.
+
+* **Settings → Companies** — add an external firm, or deactivate one (which signs out all of
+  its users and keeps their tickets).
+* **Settings → Users** — a Company field appears once an external company exists.
+* The scope is an identity constraint, not a permission: it cannot be widened in
+  Settings → Roles, so an external user holding MANAGER still sees nothing outside their company.
+* A user with no company is treated as external and sees nothing — fail closed. The API warns
+  at boot if any active account is in that state.
+
+Proven by `backend/test/tenancy.e2e-spec.ts` (the PT-E series: 31 tests across three companies).
+
+## Security
+
+See `SECURITY_HARDENING.md` for the full picture and the operator checklist. In short:
+TLS enforced in production (the API refuses to start without it), global rate limiting,
+account lockout, TOTP two-factor at **Settings → Security**, a tamper-evident audit chain,
+CSP on the SPA, deny-by-default route authorisation, and a least-privilege database role
+(`backend/prisma/sql/create-app-role.sql`).
 
 ## Key guarantees (vs the legacy prototype)
 

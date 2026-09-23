@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth, usePerm } from '../auth';
-import { anySettings } from '../App';
+import { canOpenSettings } from '../App';
 import { useSyncState } from '../socket';
 import { Avatar } from '../ui';
 
@@ -29,7 +29,7 @@ export default function Layout() {
   if (can('ticketsAll')) items.push({ to: '/tickets', label: 'Tickets' });
   if (can('kpi')) items.push({ to: '/kpi', label: 'KPI' });
   if (can('kpiMe')) items.push({ to: '/kpi/me', label: 'My KPI' });
-  if (anySettings(perms)) items.push({ to: '/settings', label: 'Settings' });
+  if (canOpenSettings(perms)) items.push({ to: '/settings', label: 'Settings' });
 
   return (
     <>

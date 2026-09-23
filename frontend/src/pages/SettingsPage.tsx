@@ -4,19 +4,24 @@ import { api } from '../api';
 import { Perms, useAuth, usePerm } from '../auth';
 import { AV_PALETTE, fmtDateTime } from '../labels';
 import { Avatar, Badge, EmptyState, Modal, Spinner, useToast } from '../ui';
+import SecurityTab from './SecurityTab';
+import CompaniesTab from './CompaniesTab';
 
-type Tab = 'workspace' | 'users' | 'sites' | 'roles' | 'audit';
+type Tab = 'workspace' | 'users' | 'sites' | 'companies' | 'roles' | 'audit' | 'security';
 const TAB_META: { key: Tab; label: string; perm: string }[] = [
   { key: 'users', label: 'Users', perm: 'stUsers' },
   { key: 'sites', label: 'Sites', perm: 'stSites' },
+  { key: 'companies', label: 'Companies', perm: 'stCompanies' },
   { key: 'roles', label: 'Roles', perm: 'stRoles' },
   { key: 'workspace', label: 'Workspace', perm: 'stWorkspace' },
   { key: 'audit', label: 'Audit trail', perm: 'stAudit' },
+  // Personal security is not role-gated: every user manages their own second factor.
+  { key: 'security', label: 'Security', perm: '*' },
 ];
 
 export default function SettingsPage() {
   const can = usePerm();
-  const visible = TAB_META.filter((t) => can(t.perm));
+  const visible = TAB_META.filter((t) => t.perm === '*' || can(t.perm));
   const [tab, setTab] = useState<Tab>(visible[0]?.key ?? 'users');
   useEffect(() => {
     if (!visible.some((t) => t.key === tab) && visible.length) setTab(visible[0].key);
@@ -25,7 +30,7 @@ export default function SettingsPage() {
   return (
     <div className="page" style={{ maxWidth: 980 }}>
       <div className="page-title">Settings</div>
-      <div className="page-sub">Workspace, people, sites, role permissions and the audit trail.</div>
+      <div className="page-sub">Your security settings, plus workspace, people, sites, role permissions and the audit trail.</div>
       <div className="tabs">
         {visible.map((t) => (
           <div key={t.key} className={`tab${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>
@@ -35,9 +40,11 @@ export default function SettingsPage() {
       </div>
       {tab === 'users' && <UsersTab />}
       {tab === 'sites' && <SitesTab />}
+      {tab === 'companies' && <CompaniesTab />}
       {tab === 'roles' && <RolesTab />}
       {tab === 'workspace' && <WorkspaceTab />}
       {tab === 'audit' && <AuditTab />}
+      {tab === 'security' && <SecurityTab />}
     </div>
   );
 }
@@ -60,6 +67,7 @@ const RES_META: { key: string; label: string; actions: string[]; hint?: string }
   { key: 'stWorkspace', label: 'Settings · Workspace', actions: ['view', 'edit'] },
   { key: 'stUsers', label: 'Settings · Users', actions: ['view', 'create', 'edit', 'delete'] },
   { key: 'stSites', label: 'Settings · Sites', actions: ['view', 'create', 'edit', 'delete'] },
+  { key: 'stCompanies', label: 'Settings · Companies', actions: ['view', 'create', 'edit', 'delete'] },
   { key: 'stRoles', label: 'Settings · Roles', actions: ['view', 'edit'] },
   { key: 'stAudit', label: 'Settings · Audit trail', actions: ['view'] },
 ];
@@ -315,18 +323,23 @@ function UsersTab() {
 function UserModal({ existing, onClose, onSaved }: any) {
   const { toast } = useToast();
   const [f, setF] = useState<any>(existing
-    ? { fullName: existing.fullName, email: existing.email || '', role: existing.role, siteId: existing.site?.id || existing.siteId || '', avatarColor: existing.avatarColor, isActive: existing.isActive }
-    : { fullName: '', email: '', role: 'ESTIMATOR', siteId: '', avatarColor: 0, isActive: true });
+    ? { fullName: existing.fullName, email: existing.email || '', role: existing.role, siteId: existing.site?.id || existing.siteId || '', companyId: existing.companyId || '', avatarColor: existing.avatarColor, isActive: existing.isActive }
+    : { fullName: '', email: '', role: 'ESTIMATOR', siteId: '', companyId: '', avatarColor: 0, isActive: true });
   const { data: sites } = useQuery({ queryKey: ['sites'], queryFn: () => api.get('/api/v1/sites') });
+  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: () => api.get<any[]>('/api/v1/companies') });
+  // Only worth showing once an external company exists; otherwise everyone is internal.
+  const showCompany = (companies?.length ?? 0) > 1;
   const save = useMutation({
     mutationFn: () => existing
       ? api.patch(`/api/v1/users/${existing.id}`, {
           fullName: f.fullName, email: f.email.trim() || undefined, role: f.role,
           siteId: f.role === 'SITE_ADMIN' ? f.siteId : undefined, avatarColor: f.avatarColor, isActive: f.isActive,
+          companyId: f.companyId || undefined,
         })
       : api.post('/api/v1/users', {
           email: f.email.trim(), fullName: f.fullName, role: f.role,
           siteId: f.role === 'SITE_ADMIN' ? f.siteId : undefined, avatarColor: f.avatarColor,
+          companyId: f.companyId || undefined,
         }),
     onSuccess: (res: any) => onSaved(res.activation ? { name: res.fullName, kind: 'ACTIVATION', ...res.activation } : undefined),
     onError: (e: any) => toast(e.message, true),
@@ -351,6 +364,19 @@ function UserModal({ existing, onClose, onSaved }: any) {
             <option value="">-- Select site --</option>
             {(sites || []).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select></div>
+      )}
+      {showCompany && (
+        <div className="field"><label>Company</label>
+          <select value={f.companyId} onChange={(e) => setF({ ...f, companyId: e.target.value })}>
+            <option value="">-- Your organisation --</option>
+            {(companies || []).filter((c: any) => c.isActive).map((c: any) => (
+              <option key={c.id} value={c.id}>{c.name}{c.isInternal ? ' (your organisation)' : ''}</option>
+            ))}
+          </select>
+          <div className="field-hint">
+            A user in an external company sees only that company&apos;s tickets, people and KPI.
+          </div>
+        </div>
       )}
       <div className="field"><label>Avatar colour</label>
         <div className="color-dots">

@@ -80,6 +80,11 @@ export class TokensService {
     return row;
   }
 
+  /** Fire-and-forget security notice; never blocks or fails a login attempt. */
+  async notifyLockout(user: { email: string; fullName: string }, minutes: number, ip?: string | null) {
+    return this.mail.lockoutNotice(user.email, user.fullName, minutes, ip ?? null);
+  }
+
   async sendActivation(user: { id: string; email: string; fullName: string }, company: string): Promise<{ link: string; mail: MailResult }> {
     const { link } = await this.issue(user.id, 'ACTIVATION');
     const mail = await this.mail.activation(user.email, user.fullName, company, link, ACTIVATION_TTL_HOURS());

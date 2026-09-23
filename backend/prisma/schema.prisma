@@ -99,6 +99,7 @@ model Workspace {
   kpiSettings KpiSettings?
   kpiEntries  KpiEntry[]
   roleConfigs RoleConfig[]
+  companies   Company[]
 
   @@map("workspaces")
 }
@@ -152,6 +153,14 @@ model User {
   activatedAt        DateTime? @map("activated_at") @db.Timestamptz(6)
   ssoSubject         String?   @unique @map("sso_subject")
   deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+  companyId          String?   @map("company_id") @db.Uuid
+  company            Company?  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  failedLoginCount   Int       @default(0) @map("failed_login_count")
+  lockedUntil        DateTime? @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz(6)
+  mfaSecret          String?   @map("mfa_secret")
+  mfaEnabledAt       DateTime? @map("mfa_enabled_at") @db.Timestamptz(6)
+  mfaBackupCodes     String[]  @default([]) @map("mfa_backup_codes")
 
   assignedTickets  Ticket[]       @relation("TicketAssignee")
   submittedTickets Ticket[]       @relation("TicketSubmitter")
@@ -164,6 +173,27 @@ model User {
 
   @@unique([workspaceId, username])
   @@map("users")
+}
+
+/// AR-03: the owning organisation of a record. Exactly one company per workspace is
+/// INTERNAL (the organisation running EngPro); its users are unscoped. Users belonging to
+/// any other company see only their own company's tickets — the same hard filter that
+/// confines a SITE_ADMIN to one site.
+model Company {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  isInternal  Boolean   @default(false) @map("is_internal")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users   User[]
+  tickets Ticket[]
+
+  @@index([workspaceId])
+  @@map("companies")
 }
 
 model Ticket {
@@ -184,6 +214,8 @@ model Ticket {
   assignee       User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   siteId         String?        @map("site_id") @db.Uuid
   site           Site?          @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  companyId      String?        @map("company_id") @db.Uuid
+  company        Company?       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submittedById  String?        @map("submitted_by_id") @db.Uuid
   submittedBy    User?          @relation("TicketSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
   tenderStatus   TenderStatus?  @map("tender_status")
@@ -268,8 +300,12 @@ model AuditLog {
   after       Json?
   ip          String?
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  hash        String?
+  prevHash    String?  @map("prev_hash")
 
   @@index([entityType, entityId])
+  @@index([workspaceId, id])
+  @@index([createdAt])
   @@map("audit_log")
 }
 

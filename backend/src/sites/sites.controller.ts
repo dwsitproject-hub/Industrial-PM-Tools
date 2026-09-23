@@ -7,6 +7,7 @@ import { Request } from 'express';
 import { CurrentUser, JwtUser, RequirePerm } from '../common/auth.types';
 import { PrismaService } from '../prisma.service';
 import { AuditService } from '../common/audit.service';
+import { ServiceScoped } from '../common/route-policy';
 
 class CreateSiteDto {
   @IsString() @MinLength(2) @MaxLength(80) name!: string;
@@ -22,6 +23,7 @@ class UpdateSiteDto {
 export class SitesController {
   constructor(private prisma: PrismaService, private audit: AuditService) {}
 
+  @ServiceScoped('workspace site names appear in every picker; scoped to the caller workspace')
   @Get()
   async list(@CurrentUser() user: JwtUser) {
     return this.prisma.site.findMany({

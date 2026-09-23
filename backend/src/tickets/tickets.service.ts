@@ -80,6 +80,11 @@ export class TicketsService {
 
   private scopeWhere(user: JwtUser, perms: RolePerms): any {
     const where: any = { workspaceId: user.ws };
+    // AR-03: a user from an external company never sees another company's tickets, whatever
+    // their role says. Like the site filter below, this is an identity constraint — it is not
+    // configurable in Settings -> Roles and a manager cannot widen it, because the whole point
+    // is that no permission mistake can expose one customer's tenders to another.
+    if (user.ext) where.companyId = user.co ?? '00000000-0000-0000-0000-000000000000';
     if (user.role === 'SITE_ADMIN') where.siteId = user.siteId; // identity constraint, always on
     if (perms.ticketScope === 'OWN' && user.role !== 'MANAGER') {
       where.AND = [{ OR: [{ assigneeId: user.sub }, { submittedById: user.sub }] }];
@@ -106,10 +111,16 @@ export class TicketsService {
       submittedById: user.sub,
       assigneeId: isSiteAdmin ? null : dto.assigneeId || null,
       siteId: isSiteAdmin ? user.siteId : dto.siteId || null,
+      // Stamped from the authenticated identity, exactly as siteId is for a site admin.
+      // Nothing in the request body can influence which company owns the record.
+      companyId: user.co ?? null,
     };
     if (data.assigneeId) {
       const assignee = await this.prisma.user.findFirst({
-        where: { id: data.assigneeId, workspaceId: user.ws, isActive: true, deletedAt: null },
+        where: {
+          id: data.assigneeId, workspaceId: user.ws, isActive: true, deletedAt: null,
+          ...(user.ext ? { companyId: user.co } : {}),
+        },
       });
       if (!assignee) throw new BadRequestException('Assignee not found or inactive');
     }
@@ -132,7 +143,7 @@ export class TicketsService {
       return created;
     });
 
-    this.events.emitTicket('ticket.created', { id: ticket.id, workspaceId: user.ws, siteId: ticket.siteId });
+    this.events.emitTicket('ticket.created', { id: ticket.id, workspaceId: user.ws, siteId: ticket.siteId, companyId: ticket.companyId });
     return this.decorate(ticket);
   }
 
@@ -229,7 +240,12 @@ export class TicketsService {
     }
     if (dto.assigneeId) {
       const assignee = await this.prisma.user.findFirst({
-        where: { id: dto.assigneeId, workspaceId: user.ws, deletedAt: null },
+        where: {
+          id: dto.assigneeId, workspaceId: user.ws, deletedAt: null,
+          // AR-03: an external user cannot hand their ticket to someone outside their company,
+          // which would otherwise leak the record across the boundary.
+          ...(user.ext ? { companyId: user.co } : {}),
+        },
       });
       if (!assignee) throw new BadRequestException('Assignee not found');
     }
@@ -341,7 +357,8 @@ export class TicketsService {
     });
 
     this.events.emitTicket('ticket.updated', {
-      id, workspaceId: user.ws, siteId: result.updated!.siteId, changed: requested,
+      id, workspaceId: user.ws, siteId: result.updated!.siteId,
+      companyId: result.updated!.companyId, changed: requested,
     });
     if (result.kpiAward && effAssignee) {
       this.events.emitWorkspace(user.ws, 'kpi.updated', {
@@ -365,21 +382,41 @@ export class TicketsService {
       workspaceId: user.ws, actorId: user.sub, entityType: 'ticket', entityId: id,
       action: 'delete', before: ticket, ip,
     });
-    this.events.emitTicket('ticket.deleted', { id, workspaceId: user.ws, siteId: ticket.siteId });
+    this.events.emitTicket('ticket.deleted', { id, workspaceId: user.ws, siteId: ticket.siteId, companyId: ticket.companyId });
     return { ok: true };
   }
 
   async restore(user: JwtUser, id: string, ip?: string) {
+    const perms = await this.permsFor(user);
+    // The row scope matters as much as the permission: restore previously searched the whole
+    // workspace, so a site admin could resurrect another site's ticket by id. Scope it the way
+    // every other ticket route is scoped, and answer 404 rather than 403 so the existence of
+    // an out-of-reach ticket is not disclosed.
     const ticket = await this.prisma.ticket.findFirst({
-      where: { workspaceId: user.ws, id, deletedAt: { not: null } },
+      where: { ...this.scopeWhere(user, perms), id, deletedAt: { not: null } },
     });
     if (!ticket) throw new NotFoundException();
+    if (!perms.pages.tickets.delete) {
+      throw new ForbiddenException({
+        error: 'RestoreNotPermitted', message: 'Your role cannot restore deleted tickets.',
+      });
+    }
+    if (user.role !== 'MANAGER' && user.role !== 'ADMIN') {
+      const inReach = user.role === 'SITE_ADMIN'
+        ? ticket.siteId === user.siteId
+        : ticket.assigneeId === user.sub || ticket.submittedById === user.sub;
+      if (!inReach) {
+        throw new ForbiddenException({
+          error: 'RestoreNotPermitted', message: 'You can only restore your own tickets.',
+        });
+      }
+    }
     await this.prisma.ticket.update({ where: { id }, data: { deletedAt: null } });
     await this.audit.log({
       workspaceId: user.ws, actorId: user.sub, entityType: 'ticket', entityId: id,
       action: 'restore', ip,
     });
-    this.events.emitTicket('ticket.restored', { id, workspaceId: user.ws, siteId: ticket.siteId });
+    this.events.emitTicket('ticket.restored', { id, workspaceId: user.ws, siteId: ticket.siteId, companyId: ticket.companyId });
     return { ok: true };
   }
 
@@ -444,7 +481,7 @@ export class TicketsService {
       workspaceId: user.ws, actorId: user.sub, entityType: 'note', entityId: note.id,
       action: 'create', after: { ticketId, content }, ip,
     });
-    this.events.emitTicket('note.created', { id: ticketId, workspaceId: user.ws, siteId: ticket.siteId });
+    this.events.emitTicket('note.created', { id: ticketId, workspaceId: user.ws, siteId: ticket.siteId, companyId: ticket.companyId });
     return note;
   }
 

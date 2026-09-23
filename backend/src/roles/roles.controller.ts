@@ -4,6 +4,7 @@ import { CurrentUser, JwtUser, RequirePerm } from '../common/auth.types';
 import { PermissionsService, RESOURCE_ACTIONS, defaultPerms } from '../common/permissions';
 import { AuditService } from '../common/audit.service';
 import { EventsGateway } from '../events/events.gateway';
+import { Authenticated } from '../common/route-policy';
 
 const CONFIGURABLE_ROLES = ['ADMIN', 'SITE_ADMIN', 'ESTIMATOR'];
 const ALL_ROLES = ['MANAGER', ...CONFIGURABLE_ROLES];
@@ -17,6 +18,7 @@ export class RolesController {
   ) {}
 
   /** The caller's own effective permissions — powers navigation and UI gating. */
+  @Authenticated('returns the caller own effective permissions')
   @Get('me')
   async me(@CurrentUser() user: JwtUser) {
     const perms = await this.perms.get(user.ws, user.role);

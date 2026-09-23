@@ -45,14 +45,22 @@ export class KpiService {
   }
 
   /** Members visible on the KPI board: estimators (matches legacy semantics). */
-  private membersWhere(ws: string) {
-    return { workspaceId: ws, role: 'ESTIMATOR' as const, deletedAt: null };
+  /**
+   * AR-03: the KPI ledger is individual performance data. An external user with kpi.view must
+   * never see the organisation's estimators, so the member set is confined to their own
+   * company — which in practice means they see only themselves.
+   */
+  private membersWhere(user: JwtUser) {
+    return {
+      workspaceId: user.ws, role: 'ESTIMATOR' as const, deletedAt: null,
+      ...(user.ext ? { companyId: user.co ?? '00000000-0000-0000-0000-000000000000' } : {}),
+    };
   }
 
   async summary(user: JwtUser, year: number, month: number) {
     const reach = await this.kpiReach(user);
     const members = await this.prisma.user.findMany({
-      where: reach === 'full' ? this.membersWhere(user.ws) : { id: user.sub },
+      where: reach === 'full' ? this.membersWhere(user) : { id: user.sub },
       select: { id: true, fullName: true, avatarColor: true, isActive: true },
       orderBy: { fullName: 'asc' },
     });
@@ -94,6 +102,9 @@ export class KpiService {
     const where: any = { workspaceId: user.ws, year };
     if (month) where.month = month;
     where.userId = reach === 'full' ? (userId || undefined) : user.sub;
+    // AR-03: full reach means "the whole team", and for an external user the team is their
+    // own company. Without this, kpi.view would expose the organisation's performance data.
+    if (user.ext) where.user = { companyId: user.co ?? '00000000-0000-0000-0000-000000000000' };
     const rows = await this.prisma.kpiEntry.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -103,7 +114,21 @@ export class KpiService {
     return rows;
   }
 
+  /** AR-03: refuses to award or adjust points for a member outside the actor's company. */
+  private async assertReachable(user: JwtUser, userIds: string[]): Promise<void> {
+    if (!user.ext || userIds.length === 0) return;
+    const reachable = await this.prisma.user.count({
+      where: { id: { in: userIds }, workspaceId: user.ws, companyId: user.co },
+    });
+    if (reachable !== new Set(userIds).size) {
+      throw new ForbiddenException({
+        error: 'PermissionDenied', message: 'That member is not in your company.',
+      });
+    }
+  }
+
   async setOpening(user: JwtUser, dto: { year: number; month: number; items: { userId: string; points: number }[] }, ip?: string) {
+    await this.assertReachable(user, dto.items.map((it) => it.userId));
     await this.prisma.$transaction(async (tx) => {
       for (const item of dto.items) {
         await tx.kpiEntry.deleteMany({
@@ -132,6 +157,7 @@ export class KpiService {
   }
 
   async addManual(user: JwtUser, dto: any, ip?: string) {
+    await this.assertReachable(user, [dto.userId]);
     const entry = await this.prisma.kpiEntry.create({
       data: {
         workspaceId: user.ws, userId: dto.userId, year: dto.year, month: dto.month,
@@ -151,13 +177,22 @@ export class KpiService {
   }
 
   async exportCsv(user: JwtUser, year: number): Promise<string> {
+    const where: any = { workspaceId: user.ws, year };
+    if (user.ext) where.user = { companyId: user.co ?? '00000000-0000-0000-0000-000000000000' };
     const rows = await this.prisma.kpiEntry.findMany({
-      where: { workspaceId: user.ws, year },
+      where,
       orderBy: [{ month: 'asc' }, { createdAt: 'asc' }],
       include: { user: { select: { fullName: true } } },
     });
+    /**
+     * PT-F03: a cell beginning with = + - or @ is evaluated as a formula when the file is
+     * opened in Excel or Sheets, which turns an exported ticket description into code running
+     * on a colleague's machine. Prefixing with an apostrophe makes the spreadsheet treat the
+     * value as text; the apostrophe itself is not displayed.
+     */
     const esc = (v: unknown) => {
-      const s = v == null ? '' : String(v);
+      let s = v == null ? '' : String(v);
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const header = 'member,year,month,type,points,description,ticket_no,created_by,created_at';
